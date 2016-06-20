@@ -1,0 +1,1394 @@
+---
+title: "GIAM SAT CONG TAC TONG HOP SO LIEU, XAY DUNG CO SO DU LIEU"
+author: "pt.vnforest@gmail.com"
+date:  "Don vi giam sat: Vien nghien cuu Sinh thai va Moi truong rung (RIFEE)"
+output:
+  html_document:
+    toc: true
+    toc_depth: 4
+---
+```{r set-options, echo=FALSE, cache=FALSE}
+    options(width = 120)
+```
+## **NOI DUNG GIAM SAT**
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+      options(java.parameters = "- Xmx1024m") # XLConnect "Out Of Memory"
+      Sys.setenv(JAVA_HOME='C://Program Files//Java//jre7') # for 64-bit version --> fix errors for loading java
+      
+# ---------- PACKAGES -------------------------------------------------------------
+     rm(list=ls(all=TRUE))
+     if(!require(foreign)) install.packages("foreign")
+     if(!require(tcltk)) install.packages("tcltk")
+     if(!require(XLConnect)) install.packages("XLConnect")
+     if(!require(rJava)) install.packages("rJava")
+     if(!require(knitr)) install.packages("knitr")
+     if(!require(plyr)) install.packages("plyr")
+     if(!require(stringr)) install.packages("stringr")  
+     #install.packages("rmarkdown")
+
+# ----------- THU MUC LAM VIEC ----------------------------------------------------
+    duongdan_root="C:/Kiemtra_kiemke"
+    setwd(list.dirs(duongdan_root,recursive =FALSE)[1])
+
+# ------------DOC DU LIEU ---------------------------------------------------------
+
+    #1. csv file
+      # map = read.csv(file.choose())
+      #map = read.csv(file = "data.csv",header=T, na.strings=c("","NA"))
+
+    #2. xls/xlsx file
+      #map = readWorksheetFromFile(file.choose(),sheet = 1)
+
+    #3. map file
+      map = read.dbf(file.choose(),as.is=TRUE) # dialoge box to open file
+
+# Change header to lower
+      names(map) = tolower(names(map))
+      map$ldlr = tolower(map$ldlr)
+      map$mdsd = tolower(map$mdsd)
+
+# ----------- DOC REF -------------------------------------------------------------
+      setwd(list.dirs(duongdan_root,recursive =FALSE)[3])
+      tdl_qd = readWorksheetFromFile(file="truongdulieu.xls",sheet = 1)
+      ldlr_qd = readWorksheetFromFile(file="truongdulieu.xls",sheet = 2)
+      mdsd_qd = readWorksheetFromFile(file="truongdulieu.xls",sheet = 3)
+      chucai = readWorksheetFromFile(file="truongdulieu.xls",sheet = 5)
+      tdl_qd = tdl_qd[,c("tentruong","kieu","do_rong")]
+
+#---------- FUNCTIONS ------------------------------------------------------------
+# Function Creat_diff: 
+        # Tru tu tren xuong
+        creat_diff_2_1 = function(data,vitribatdau,vitribitru) {
+                                   n = seq_along(data)
+                                   i = 1
+                                   for(i in n){
+                                   data[i] = data[vitribatdau] - data[vitribitru]
+                                   vitribatdau = vitribatdau + 1 
+                                   vitribitru = vitribitru + 1
+                                   }
+                                   data
+                               }
+
+# Tru tu duoi len
+        creat_diff_n_n_1 = function(data,vitribatdau) {
+                                   n = length(data)
+                                   for(i in n:2){
+                                   vitribitru= vitribatdau - 1 
+                                   data[i] = data[vitribatdau] - data[vitribitru]
+                                   vitribatdau = vitribatdau - 1
+                               }
+                                   data
+                               }
+#---------- END FUNCTIONS ---------------------------------------------------------
+
+```
+### 1. So lieu dau vao
+#### _1.1. So lieu cac lo nam trong quy hoach va ngoai quy hoach phai kiem ke_
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+      
+#1. Xac dinh doi tuong trong kiem ke (trong quy hoach + ngoai quy hoach nhung da trong rung + da thanh rung)
+
+# Ghi chu: neu chua danh ma nqh (ngoai quy hoach, khong chay dong lenh tu dong 60 den dong 73)
+  map_qh0 = subset(map,map$nqh == 0) # Doi tuong rung nam trong quy hoach (ma = 0)
+  map_qh1 = subset(map,map$nqh == 1) # Doi tuong ngoai quy hoach (ma = 1)
+  map_ldlr_nqh = ldlr_qd[,c("ldlr","nqh")] 
+  ma_ldlr_qh0 = subset(map_ldlr_nqh,map_ldlr_nqh$nqh == 0) # Ma loai dat, loai rung ngoai quy hoach, phai kiem ke
+  ma_ldlr_qh1 = subset(map_ldlr_nqh,map_ldlr_nqh$nqh == 1) # Ma loai dat, loai rung nqh, khong kiem ke
+
+# Doi tuong ngoai quy hoach (qh1) voi ma ldlr phai kiem ke (map_ldlr_nqh$nqh == 0)
+  # Gop sl doi tuong ngoai quy hoach (map_qh1) voi ma ldlr nqh phai kk (ma_ldlr_qh0)--> truong du lieu nqh phai kiem ke
+  merge_map_qh1_kk = merge(ma_ldlr_qh0,map_qh1,by = "ldlr",all.x = TRUE)
+  map_qh1_kk = subset(merge_map_qh1_kk,merge_map_qh1_kk$matinh != 0 | merge_map_qh1_kk$mahuyen != 0 | merge_map_qh1_kk$dtich != 0) 
+
+# Du lieu ngoai quy hoach voi ldlr phai kiem ke
+      map_qh1_kk = subset(map_qh1_kk, select=-c(nqh.x))
+      names(map_qh1_kk)[names(map_qh1_kk)=="nqh.y"] = "nqh"  # Change name column by name
+  if(length(map_qh1_kk$lo)==0){print("Khong co lo nao ngoai quy hoach phai kiem ke")} else {print(paste("Co",length(map_qh1_kk$lo),"ngoai quy hoach phai kiem ke"))}
+      #;map_qh1_kk
+  
+# Doi tuong ngoai quy hoach (qh1) voi ma ldlr phai kiem ke, muc dich san xuat go
+  map_qh1_kk_sxgo = subset(map_qh1_kk,map_qh1_kk$malr3 == 3 | map_qh1_kk$mdsd == "sxgn" | map_qh1_kk$mdsd == "sxgl")
+
+  if(length(map_qh1_kk_sxgo$lo)==0){print("Khong co lo nao ngoai quy hoach phai kiem ke, voi muc dich san xuat go")} else {print(paste("Co",length(map_qh1_kk_sxgo$lo),"ngoai quy hoach phai kiem ke, voi muc dich san xuat go"))}
+      #;map_qh1_kk_sxgo
+# Du lieu rung trong quy hoach voi loai dat ngoai quy hoach voi ma ldlr phai kiem ke
+  map = rbind.fill(map_qh0,map_qh1_kk)  # Gop hai df voi tieu de cot giong nhau, ko theo cung tran tu
+  if(length(map$nqh)!=0){print(paste("So luong lo kiem tra nam trong quy hoach va ngoai quy hoach phai kiem ke la",length(map$nqh), "lo"))} 
+
+# Du lieu rung trong quy hoach voi du lieu rung trong ngoai quy hoach voi muc dich san xuat go
+  map_sxgo = rbind.fill(map_qh0,map_qh1_kk_sxgo)  # Gop hai df voi tieu de cot giong nhau, ko theo cung tran tu
+  if(length(map_sxgo$nqh)!=0){print(paste("So luong lo kiem tra nam trong quy hoach va ngoai quy hoach voi muc dich san xuat go la",length(map_sxgo$nqh), "lo"))} else {print("Khong co lo nao nam ngoai quy hoach voi muc dich san xuat go")}
+
+```
+#### _1.2. So lieu cac lo nam ngoai quy hoach phai kiem ke_
+
+```{r,echo=FALSE}
+#2. Xac dinh so luong lo nqh_khong_kk, nhung dua so lieu vao ban do
+    # Gop so lieu ngoai quy hoach voi ma ldlr ngoai quy hoach khong kiem ke
+    map_qh1_khong_kk = merge(ma_ldlr_qh1,map_qh1,by = "ldlr",all.x = TRUE)
+    map_qh1_khong_kk = subset(map_qh1_khong_kk,map_qh1_khong_kk$matinh != 0 | map_qh1_khong_kk$mahuyen != 0 | map_qh1_khong_kk$dtich != 0) # Doi tuong qh1 (ngoai quy hoach), voi ma ldlr khong phai kiem ke
+    map_qh1_khong_kk = subset(map_qh1_khong_kk,select = -c(nqh.x))
+    names(map_qh1_khong_kk)[names(map_qh1_khong_kk)=="nqh.y"] = "nqh"
+    if(length(map_qh1_khong_kk$nqh)!=0){print(paste("Co",length(map_qh1_khong_kk$nqh), "lo ngoai quy hoach, ung voi ldlr khong phai kiem ke, tuy nhien van thong ke tren ban do"))} else {print("Khong co lo nam ngoai quy hoach khong phai kiem ke tren ban do")}
+#;merge_map_ldlr_nqh_khong_kk}
+```
+### 2. Bang tong hop so lieu tieu khu, khoanh, lo
+
+```{r,echo=FALSE}
+# Bang so lieu cua tinh
+  # Tong hop Tinh - Tieu khu - Lo
+    dl_tinh_lo = map[,c("tinh","huyen","xa","tk","khoanh","lo")]
+    tinh_kk = aggregate(dl_tinh_lo, list(dl_tinh_lo$tinh,dl_tinh_lo$huyen,dl_tinh_lo$xa,dl_tinh_lo$tk), FUN = function(x) length(x))
+    tinh_kk = tinh_kk[,c(1:5)]
+    names(tinh_kk)=c("tinh","huyen","xa","tk","lo")
+
+  # Bang tong hop tinh
+    tk_khoanh = map[,c("tk","khoanh")]
+    tk_khoanh = aggregate(.~tk,tk_khoanh,function(x) length(unique(x)))
+    tinh_tk_khoanh_lo = merge(tinh_kk,tk_khoanh,by="tk")
+    tinh_tk_khoanh_lo = tinh_tk_khoanh_lo[,c(2:4,1,6,5)]
+    names(tinh_tk_khoanh_lo)=c("tinh","huyen","xa","tk","so_khoanh","so_lo")
+
+# So tinh
+    ten_tinh = unique(dl_tinh_lo$tinh)
+    so_tinh = length(unique(ten_tinh))
+
+# So huyen
+    ten_huyen = unique(dl_tinh_lo$huyen)
+    so_huyen = length(unique(ten_huyen))
+
+# So xa
+    ten_xa = unique(dl_tinh_lo$xa)
+    so_xa = length(unique(ten_xa))
+
+# So tieu khu
+    ten_tk = unique(dl_tinh_lo$tk)
+    so_tk = length(unique(ten_tk))
+
+# So khoanh
+    ten_khoanh = unique(dl_tinh_lo$khoanh)
+    so_khoanh = sum(tinh_tk_khoanh_lo$so_khoanh)
+
+# So lo 
+    ten_lo = unique(dl_tinh_lo$lo)
+    so_lo = length(dl_tinh_lo$lo)
+
+# In thong tin ra man hinh
+    print("I --- Bang tong hop tieu khu, khoanh, lo")
+    tinh_tk_khoanh_lo
+    print("II --- So luong cu the nhu sau:")
+    print(paste("1-So luong tieu khu:",so_tk,"tieu khu"))
+    print(paste("2-So luong khoanh:",so_khoanh,"khoanh"))
+    print(paste("3-So luong lo:",so_lo,"lo"))
+    print(paste("4-So luong huyen:",so_huyen,"huyen"))
+    print(paste("5-So luong xa:",so_xa,"xa"))
+```
+###3. So luong va qui cach dat ten truong so lieu
+#### _3.1. Ten truong va so luong truong du lieu_
+```{r, echo=FALSE}
+# So luong truong du lieu va ten truong
+    sotruong = length(names(map))
+    if(sotruong>0){paste("So luong truong du lieu kiem tra la:",sotruong,"truong du lieu")};
+    if(sotruong!=0){print(paste("Tên",sotruong,"truong du lieu kiem tra la:"));names(map)};
+# So luong truong du lieu
+    tdl_kk = data.frame(names(map))
+    names(tdl_kk) = "tentruong"
+    tdl_kk$maso = 1
+    kq_tdl = merge(tdl_kk,tdl_qd, by= "tentruong", all = T)
+    kq_tdl_thieu_qd = subset(kq_tdl,is.na(kq_tdl$maso) == TRUE)[,1]
+    tdl_sai = subset(kq_tdl,is.na(kq_tdl$do_rong) == TRUE)
+    if (length(tdl_sai$kieu) == 0) {print("Ket luan: du 51 truong du lieu theo qui dinh")} else {print(paste("Ket luan: Thieu",length(tdl_sai[,1]), "truong du lieu, do la:"));as.character(kq_tdl_thieu_qd)}
+```
+#### _3.2. Quy cach dat ten truong_
+
+```{r, echo=FALSE}
+# So sanh ten truong theo qui chuan voi ten truong tren ban do
+   if (length(tdl_sai$kieu) == 0) {print("Ket luan: dat ten truong du lieu dung theo qui dinh")} else {print(paste("Ket luan: Ten truong du lieu dat khong dung theo qui dinh, do la",length(tdl_sai[,1]),"truong:"));as.character(tdl_sai[,1])}
+```
+### 4. Ten tinh, huyen, xa va ma huyen, ma tinh, ma xa
+
+```{r,echo=FALSE}
+
+```
+#### _4.1 - Tinh_
+
+```{r, echo=FALSE}
+# Du lieu dau vao: QH + NQH_KK
+# Kiem tra thong tin ten tinh
+  tinh_ma = map[,c("tinh","matinh","tk","khoanh","lo")]
+  tinh_thieu = subset(tinh_ma,tinh_ma$tinh == 0| is.na(tinh_ma$tinh) == TRUE)
+  if(length(tinh_thieu$tinh) == 0){print("@ Truong du lieu ten tinh du thong tin")} else {print(paste("@ Co",length(tinh_thieu$tinh),"lo thieu thong tin ten tinh, do la:"));tinh_thieu}
+
+#3.1.1. Kiem tra cung ten tinh co nhieu hon hai ma tinh
+  tinh_ma_lap = unique(tinh_ma[c("tinh","matinh")])
+  kt_tinh_ma = as.data.frame(xtabs(~ tinh, data = tinh_ma_lap))
+  ten_tinh_ma = subset(kt_tinh_ma,kt_tinh_ma$Freq > 1)
+  kt_tinh_ma_sai = merge(ten_tinh_ma,tinh_ma_lap,by.x = "tinh")
+  kt_tinh_ma_sai = kt_tinh_ma_sai[,-2]
+  if (length(kt_tinh_ma_sai$tinh) != 0) {print(paste("@ Ra soat lai ten tinh va ma tinh sau:"));kt_tinh_ma_sai}
+
+#3.1.2. Kiem tra cung ma tinh co hai ten tinh
+  ma_tinh = map[,c("matinh","tinh")]
+  ma_tinh_lap = unique(ma_tinh[c("matinh","tinh")])
+  kt_ma_tinh = as.data.frame(xtabs(~ matinh, data = ma_tinh_lap))
+  ten_ma_tinh = subset(kt_ma_tinh,kt_ma_tinh$Freq > 1)
+  kt_ma_tinh_sai = merge(ten_ma_tinh,ma_tinh_lap,by.x = "matinh")
+  kt_ma_tinh_sai = kt_ma_tinh_sai[,-2]
+  if (length(kt_ma_tinh_sai$matinh) != 0) {print(paste("@ Ra soat lai ma tinh va ten tinh sau:"));kt_ma_tinh_sai}
+
+```
+#### _4.2 - Huyen_
+
+```{r, echo=FALSE}
+# Kiem tra thong tin ten huyen
+  huyen_ma = map[,c("huyen","mahuyen","tk","khoanh","lo")]
+  huyen_thieu = subset(huyen_ma,huyen_ma$huyen == 0| is.na(huyen_ma$huyen) == TRUE)
+  if(length(huyen_thieu$huyen) == 0){print("@ Truong du lieu ten huyen du thong tin")} else {print(paste("@ Co",length(huyen_thieu$huyen),"lo thieu thong tin ten huyen, do la:"));huyen_thieu}
+
+#3.2.1 Cung ten huyen co hai ma huyen
+  huyen_ma_lap = unique(huyen_ma[c("huyen","mahuyen")])
+  kt_huyen_ma = as.data.frame(xtabs(~ huyen, data = huyen_ma_lap))
+  ten_huyen_ma = subset(kt_huyen_ma,kt_huyen_ma$Freq > 1)
+  kt_huyen_ma_sai = merge(ten_huyen_ma,huyen_ma_lap,by.x = "huyen")
+  kt_huyen_ma_sai = kt_huyen_ma_sai[,-2]
+  if (length(kt_huyen_ma_sai$huyen) != 0) {print(paste("Ket luan: Ra soat lai ten huyen va ma huyen sau:"));kt_huyen_ma_sai}
+
+#3.2.2. Cung ma huyen co nhieu hon hai ten huyen
+  ma_huyen = map[,c("mahuyen","huyen")]
+  ma_huyen_lap = unique(ma_huyen[c("mahuyen","huyen")])
+  kt_ma_huyen = as.data.frame(xtabs(~ mahuyen, data = ma_huyen_lap))
+  ten_ma_huyen = subset(kt_ma_huyen,kt_ma_huyen$Freq > 1)
+  kt_ma_huyen_sai = merge(ten_ma_huyen,ma_huyen_lap,by.x = "mahuyen")
+  kt_ma_huyen_sai = kt_ma_huyen_sai[,-2]
+  if (length(kt_ma_huyen_sai$mahuyen) != 0) {print(paste("Ket luan: Ra soat lai ma huyen va ten huyen sau:"));kt_ma_huyen_sai}
+#   if (length(kt_ma_huyen_sai$mahuyen) != 0) {print(paste("Ket luan: Ra soat lai ma huyen va ten huyen sau:"));kt_ma_huyen_sai}
+
+```
+#### _4.3 - Xa_
+
+```{r,echo=FALSE}
+# Kiem tra thong tin ten xa
+  xa_ma = map[,c("xa","maxa","tk","khoanh","lo")]
+  xa_thieu = subset(xa_ma,xa_ma$xa == 0| is.na(xa_ma$xa) == TRUE)
+  if(length(xa_thieu$xa) == 0){print("@ Truong du lieu ten xa du thong tin")} else {print(paste("@ Co",length(xa_thieu$xa),"lo thieu thong tin ten xa, do la:")); xa_thieu}
+
+#3.3.1. Cung ten xa co nhieu hon hai ma xa
+  xa_ma_lap = unique(xa_ma[c("xa","maxa")])
+  kt_xa_ma = as.data.frame(xtabs(~ xa, data = xa_ma_lap))
+  ten_xa_ma = subset(kt_xa_ma,kt_xa_ma$Freq > 1)
+  kt_xa_ma_sai = merge(ten_xa_ma,xa_ma_lap,by.x = "xa")
+  kt_xa_ma_sai = kt_xa_ma_sai[,-2]
+  if (length(kt_xa_ma_sai$xa) != 0) {print(paste("Ket luan: Ra soat lai ten xa va ma xa sau:"));kt_xa_ma_sai}
+
+#3.3.2. Cung ma xa co nhieu hon hai ten xa
+  ma_xa = map[,c("maxa","xa")]
+  ma_xa_lap = unique(ma_xa[c("maxa","xa")])
+  kt_ma_xa = as.data.frame(xtabs(~ maxa, data = ma_xa_lap))
+  ten_ma_xa = subset(kt_ma_xa,kt_ma_xa$Freq > 1)
+  kt_ma_xa_sai = merge(ten_ma_xa,ma_xa_lap,by.x = "maxa")
+  kt_ma_xa_sai = kt_ma_xa_sai[,-2]
+  if (length(kt_ma_xa_sai$maxa) != 0) {print(paste("Ket luan: Ra soat lai ma xa va ten xa sau:"));kt_ma_xa_sai}
+```
+### 5. Thong tin tieu khu, khoanh, lo
+#### _5.1. Tieu khu_
+```{r, echo=FALSE}
+# Du lieu: QH+NQH_KK
+# Kiem tra so luong thong tin tieu khu
+    tk_kk = map[,c("tk","khoanh","lo","ldlr","dtich")]
+    tk_kk_sai = subset(tk_kk,tk_kk$tk==0|is.na(tk_kk$tk)==TRUE)
+   if(length(tk_kk_sai$tk) ==0) { print("Thong tin tieu khu du du lieu")} else {print(paste("Ket luan: Co",length(tk_kk_sai$tk),"lo thieu thong tin ve tieu khu, do la"));tk_kk_sai}
+# Kiem tra lap tieu khu
+    tk_lap = map[,c("tk","xa")]
+    tk_lap = xtabs(~tk_lap$tk+tk_lap$xa,data=tk_lap)
+    tk_lap = ifelse(tk_lap>0,1,0)
+    tk_lap = as.data.frame(tk_lap)
+    tk_lap$tk = as.data.frame(row.names(tk_lap)) # get row name of data.frame
+    row.names(tk_lap) = NULL # remove row names
+
+# Sua code (Them if else)
+if(length(names(tk_lap))<=3) {print("Khong co tieu khu nam tren hai xa")} else {
+    tk_lap = tk_lap[,c(length(names(tk_lap)),2:(length(names(tk_lap))-1))]
+    tk_lap$sum_tk_xa = rowSums(tk_lap[,c(2:length(names(tk_lap)))])
+    tk_lap = subset(tk_lap,tk_lap$sum_tk_xa > 1)
+    if(length(tk_lap$sum_tk_xa)!=0){
+    tk_lap =  tk_lap[,colSums(tk_lap!= 0) > 0]
+    sl_tk_lap = length(tk_lap$sum_tk_xa)
+    tk_lap = tk_lap[,-length(names(tk_lap))]
+    names(names(tk_lap[,1])) = "tk"
+    print(paste("Ra soat lai",sl_tk_lap,"tieu khu, co so hieu tk lap lai tren hai xa, do la:"));tk_lap}
+}
+```
+#### _5.2. Khoanh_
+
+```{r, echo=FALSE}
+# Du lieu: QH+NQH_KK
+    khoanh_kk = map[,c("tk","khoanh","lo","ldlr","dtich")]
+    khoanh_kk_sai = subset(khoanh_kk,khoanh_kk$khoanh==0|is.na(khoanh_kk$khoanh)==TRUE)
+   if(length(khoanh_kk_sai$khoanh) ==0) { print("Thong tin khoanh du du lieu")} else {print(paste("Co",length(khoanh_kk_sai$khoanh),"lo thieu thong tin ve khoanh, do la"));khoanh_kk_sai}
+```
+#### _5.3. Lo_
+
+```{r, echo=FALSE, warning=FALSE}
+# Du lieu: Quy hoach (nqh = 0)
+# Kiem tra thong tin lo
+    lo_kk = map[,c("tk","khoanh","lo","ldlr","dtich","nqh")]  # Neu chi xet lo trong quy hoach, map --> map_qh0
+    lo_kk$lo = as.character(lo_kk$lo)
+    lo_kk_sai = subset(lo_kk,lo_kk$lo=="0"|is.na(lo_kk$lo)==TRUE)
+   if(length(lo_kk_sai$lo) ==0) { print("Thong tin lo du du lieu")} else {print(paste("Ket luan: Co",length(lo_kk_sai$lo),"lo thieu thong tin ve lo, do la"));lo_kk_sai}
+
+# Kiem tra lap lo
+    lo_kk_lap = map[,c("tk","khoanh","lo")]    # Neu chi xet lo trong quy hoach, map --> map_qh0
+if(length(lo_kk_lap$lo)== 0){print("Khong co lo lap")} else {
+    lo_kk_lap$tk_khoanh = paste(lo_kk_lap$tk,lo_kk_lap$khoanh, sep = "_")
+    l_lo_kk_lap = split(lo_kk_lap, lo_kk_lap$tk_khoanh)
+    kt_lo_lap = l_lo_kk_lap # tach ra de su dung so lieu l_lo_kk_lap_kt cho kiem tra danh so thu tu lo
+    sl_tk_khoanh = seq_along(kt_lo_lap)
+    for(i in sl_tk_khoanh) {
+      kt_lo_lap[[i]] = aggregate(kt_lo_lap[[i]],list(kt_lo_lap[[i]]$tk,kt_lo_lap[[i]]$khoanh,kt_lo_lap[[i]]$lo), FUN = function(x) length(x))
+    }
+    kt_lo_lap = do.call("rbind", kt_lo_lap)
+    kt_lo_lap = kt_lo_lap[,c(1:4)]
+    names(kt_lo_lap) = c("tk","khoanh","lo","so_lan_lap")
+    kt_lo_lap = subset(kt_lo_lap,kt_lo_lap$so_lan_lap > 1)
+    sl_tk_lo_lap = length(unique(kt_lo_lap$tk))
+    row.names(kt_lo_lap) = NULL 
+  if (length(kt_lo_lap$tk) != 0) {print(paste("Ra soat lai",sl_tk_lo_lap,"tieu khu, co",length(kt_lo_lap$tk), "lo, danh ten lo bi lap lai/khoanh,cu the:"));kt_lo_lap}
+}
+ # So lo danh khong dung thu tu
+    # Tach chu va so 
+      lo_kk_lap$chuso = str_extract(lo_kk_lap$lo,"[0-9]+")
+      lo_kk_lap$chucai = str_extract(lo_kk_lap$lo,"[aA-zZ]+")
+    # Thay gia tri a,b,c bang so
+      lo_kk_lap = merge(lo_kk_lap,chucai,by="chucai",all.x = TRUE)
+    # Chuyen NA thanh 0
+      lo_kk_lap[is.na(lo_kk_lap)] = 0
+    # Ten lo kiem ke
+      names(lo_kk_lap)[names(lo_kk_lap)=="chuso.x"] = "chuso_lo"     
+      names(lo_kk_lap)[names(lo_kk_lap)=="chuso.y"] = "chucai_chuso_lo"
+      lo_kk_lap$chuso_lo = as.numeric(lo_kk_lap$chuso_lo)
+      lo_kk_lap = lo_kk_lap[with(lo_kk_lap,order(lo_kk_lap$tk,lo_kk_lap$khoanh,lo_kk_lap$chuso_lo)),]
+if(length(lo_kk_lap$lo)==0){print("Lo danh dung qui dinh, khong co lo nao bi ngat quang")} else {
+    # Chuyen dong de tru tk,khoanh, lo --> xac dinh lo ngat quang (lien ke)
+      lo_phu = subset(lo_kk_lap, select = c("chuso_lo","chucai_chuso_lo"))
+      lo_phu_2_n = lo_phu[c(2:length(lo_phu$chucai_chuso_lo)),]  # Lay tu dong thu 2 den dong cuoi cung cua df lo_phu
+      lo_phu_1 = lo_phu[1,]                               # Lay dong dau tien cua df lo_phu
+      lo_phu_sau = rbind(lo_phu_2_n,lo_phu_1)             # Gop 2 df vao (cho dong thu 2 len truoc)
+      names(lo_phu_sau) = c("chuso_lo_phu","chucai_chuso_lo_phu")
+    # Du lieu lo kiem tra
+      danhso_lo_kk = cbind(lo_kk_lap,lo_phu_sau)
+    # Tinh toan xem so lo lien ke (cach nhau)
+      danhso_lo_kk$kt_lo_solo = danhso_lo_kk$chuso_lo_phu - danhso_lo_kk$chuso_lo
+      danhso_lo_kk$kt_lo_chulo = danhso_lo_kk$chucai_chuso_lo_phu - danhso_lo_kk$chucai_chuso_lo
+    # Du lieu day du, co ca so va chu cai cua lo da chuyen sang dang so (danhso_lo_kk)
+      kt_lo_danhsai = subset(danhso_lo_kk,select = c("tk_khoanh","tk","khoanh","lo","kt_lo_solo"))
+      l_kt_lo_danhsai = split(kt_lo_danhsai, kt_lo_danhsai$tk_khoanh)
+      sl_l_kt_lo_danhsai = seq_along(l_kt_lo_danhsai)
+    # Kiem tra
+      for(i in sl_l_kt_lo_danhsai) {
+        l_kt_lo_danhsai[[i]]$max_kt_lo_solo = max(l_kt_lo_danhsai[[i]]$kt_lo_solo)
+      }
+      kt_lo_danhsai = do.call(rbind,l_kt_lo_danhsai)
+      kt_lo_danhsai = subset(kt_lo_danhsai,kt_lo_danhsai$max_kt_lo_solo>1)
+      row.names(kt_lo_danhsai) = NULL
+      kt_lo_danhsai = kt_lo_danhsai[,c(2:5)]
+      names(kt_lo_danhsai)[4] = c("buoc_nhay_lo")
+
+# Su dung function creat_diff_sau_tru_truoc
+      kt_lo_danhsai$nhay_lo = creat_diff_n_n_1(kt_lo_danhsai$buoc_nhay_lo,length(kt_lo_danhsai$buoc_nhay_lo))
+      kt_lo_danhsai$nhay_lo_phu = kt_lo_danhsai$nhay_lo - kt_lo_danhsai$buoc_nhay_lo
+      kt_lo_danhsai = subset(kt_lo_danhsai,kt_lo_danhsai$buoc_nhay_lo>1|kt_lo_danhsai$nhay_lo <0 & kt_lo_danhsai$nhay_lo_phu != -1)
+      kt_lo_danhsai = kt_lo_danhsai[,c(1:4)]
+      kt_lo_danhsai$buoc_nhay_lo = ifelse(kt_lo_danhsai$buoc_nhay_lo<=1,0,kt_lo_danhsai$buoc_nhay_lo)
+      kt_lo_danhsai$phu = creat_diff_n_n_1(kt_lo_danhsai$buoc_nhay_lo,length(kt_lo_danhsai$buoc_nhay_lo))
+      row.names(kt_lo_danhsai) = NULL
+      kt_lo_danhsai = subset(kt_lo_danhsai,!(kt_lo_danhsai$phu == 0 & kt_lo_danhsai$buoc_nhay_lo == 0))
+      kt_lo_danhsai = kt_lo_danhsai[,c(1:4)]
+      if(length(kt_lo_danhsai$tk) != 0) {
+        # So luong tieu khu danh sai
+          sl_tk_danhsai_lo = length(unique(kt_lo_danhsai$tk)) 
+        # So luong khoanh danh sai
+          tk_khoanh_danhsai_lo = kt_lo_danhsai[,c("tk","khoanh")]
+          tk_khoanh_danhsai_lo = aggregate(.~tk,tk_khoanh_danhsai_lo,function(x) length(unique(x)))
+          so_khoanh_danhsai_lo = sum(tk_khoanh_danhsai_lo$khoanh)
+          map_lo_nhay = subset(kt_lo_danhsai,kt_lo_danhsai$buoc_nhay_lo>1)
+          sllo_kt_lo_danhsai = length(map_lo_nhay$buoc_nhay_lo)
+        # In ra man hinh
+          print(paste("Co",so_khoanh_danhsai_lo,"khoanh, thuoc",sl_tk_danhsai_lo, "tieu khu, danh so hieu lo bi ngat quang, cu the nhu sau:"))
+          print(kt_lo_danhsai)
+          print(paste("Tong so lo bi ngat quang",sllo_kt_lo_danhsai))
+        }
+}
+
+```
+### 6. Thong tin thua dat, so to ban do
+####_6.1. Thua dat_
+
+```{r, echo=FALSE}
+    thuad_kk = map[,c("tk","khoanh","lo","thuad")]
+    thuad_kk$thuad = as.numeric(as.character(thuad_kk$thuad))
+    thuad_kk_sai = subset(thuad_kk,thuad_kk$thuad==0|is.na(thuad_kk$thuad)==TRUE)
+   if(length(thuad_kk_sai$thuad) ==0) { print("Thong tin thuad du du lieu")} else {print(paste("Ket luan: Co",length(thuad_kk_sai$thuad),"lo thieu thong tin ve thuad (dong lenh 345)"))}#;thuad_kk_sai}
+```
+#### _6.2. So to ban do_
+
+```{r, echo=FALSE}
+    tobando_kk = map[,c("tk","khoanh","lo","tobando")]
+    tobando_kk$tobando = as.numeric(as.character(tobando_kk$tobando))
+    tobando_kk_sai = subset(tobando_kk,tobando_kk$tobando==0|is.na(tobando_kk$tobando)==TRUE)
+   if(length(tobando_kk_sai$tobando) ==0) { print("Thong tin tobando du du lieu")} else {print(paste("Ket luan: Co",length(tobando_kk_sai$tobando),"lo thieu thong tin ve tobando (dong lenh 435)"))}#;tobando_kk_sai}
+    #tobando_kk_sai
+```
+### 7. Dien tich
+####_7.1. Thong tin dien tich lo_
+```{r, echo=FALSE}
+# Du lieu: QH + NQH_KK
+    dtich_kk = map[,c("tk","khoanh","lo","dtich")]
+    dtich_kk$dtich = as.numeric(as.character(dtich_kk$dtich))
+    dtich_kk_thieu = subset(dtich_kk,is.na(dtich_kk$dtich)==TRUE|dtich_kk$dtich == 0)
+    dtich_kk_chuanhap = subset(dtich_kk,is.na(dtich_kk$dtich)==TRUE)
+    dtich_kk_0 = subset(dtich_kk,dtich_kk$dtich == 0)
+   if(length(dtich_kk_thieu$dtich) ==0) { print("Ket luan: Thong tin dtich du du lieu")} 
+   if(length(dtich_kk_0$dtich) !=0) { print(paste("Ket luan: Co",length(dtich_kk_0$dtich),"lo co dtich bang khong, do la"));dtich_kk_0}
+   if(length(dtich_kk_chuanhap$dtich) !=0) {print(paste("Ket luan: Co",length(dtich_kk_chuanhap$dtich),"lo thieu thong tin ve dtich, do la"));dtich_kk_chuanhap}
+   
+```
+####_7.2. So lo rung trong thieu thong tin va lo co dien tich nho hon 0,2ha_
+
+```{r, echo=FALSE}
+# Du lieu: QH + NQH (Kiem tra thong tin dien tich lo)
+# Loc rung trong
+    dl_rtrong = map[,c("ldlr","tk","khoanh","lo","dtich","sldlr","namtr","captuoi","ktan","nggocrt","thanhrung","malr3","churung")]
+    ldlr_rtrong = ldlr_qd[,c("ldlr","ma_rtn_rt")]
+    dl_rtrong = merge(dl_rtrong,ldlr_rtrong, by = "ldlr",all = TRUE)
+    dl_rtrong = subset(dl_rtrong,dl_rtrong$ma_rtn_rt == 2)
+    dl_rtrong = subset(dl_rtrong, is.na(dl_rtrong$lo) == FALSE)[,-14]
+# Kiem tra so lo rung trong
+    sl_rt = length(dl_rtrong$ldlr)
+# Kiem tra co lo rung trong khong
+    if(sl_rt== 0) {print("Ket luan: Khong co lo rung trong nao")} else {
+    # Kiem tra lo rung trong chua nhap thong tin ve dien tich 
+     dtich_rtg_0 = subset(dl_rtrong, dl_rtrong$dtich == 0| is.na(as.character(dl_rtrong$dtich)) == TRUE)
+     sl_dtich_rtg_0 = length(dtich_rtg_0$dtich) 
+# Kiem tra thong tin lo rung trong co thieu khong
+    if(sl_rt!= 0 & sl_dtich_rtg_0 == 0) {print("Ket luan: Cac lo rung trong co du thong tin ve dien tich lo")} else {print(paste("Co",sl_dtich_rtg_0,"lo thieu thong tin dien tich lo, do la:"));dtich_rtg_0}
+}
+
+# Kiem tra co lo nao co dien tich nho hon 0,2ha khong
+  if(sl_rt!= 0){
+    # Kiem tra lo co dien tich nho hon 0,2 ha
+    dl_rtrong_002 = dl_rtrong[,c("ldlr","tk","khoanh","lo","dtich","sldlr","namtr","malr3","churung")]
+    dtich_rtg_0.2 = subset(dl_rtrong_002, dl_rtrong_002$dtich<0.2)
+    sl_dtich_rtg_0.2 = length(dtich_rtg_0.2$dtich)
+    dtich_rtg_0.2 = dtich_rtg_0.2[order(dtich_rtg_0.2$ldlr,dtich_rtg_0.2$tk,dtich_rtg_0.2$khoanh,dtich_rtg_0.2$lo,dtich_rtg_0.2$dtich),]
+    if(sl_dtich_rtg_0.2==0){print("Khong co lo rung trong nao co dien tich nho hon 0,2 ha")} else {print(paste("Co",sl_dtich_rtg_0.2,"lo rung trong co dien tich nho hon 0,2 ha"));dtich_rtg_0.2}
+
+# Kiem tra trong so cac lo co dien tich nho hon 0,2 ha co lo nao can gop khong
+  if(length(dtich_rtg_0.2$lo) > 1) {
+    # So lo nen gop lai
+         rtrong_gop = dtich_rtg_0.2
+         rtrong_gop$tk_khoanh = paste(rtrong_gop$tk,rtrong_gop$khoanh, sep = "_")
+    # So lo danh khong dung thu tu
+     # Tach chu va so 
+         rtrong_gop$chuso = str_extract(rtrong_gop$lo,"[0-9]+")
+         rtrong_gop$chucai = str_extract(rtrong_gop$lo,"[aA-zZ]+")
+     # Thay gia tri a,b,c bang so
+        rtrong_gop = merge(rtrong_gop,chucai,by="chucai",all.x = TRUE)
+     # Chuyen NA thanh 0
+        rtrong_gop[is.na(rtrong_gop)] = 0
+     # Ten lo kiem ke
+         names(rtrong_gop)[names(rtrong_gop)=="chuso.x"] = "chuso_lo"     
+         names(rtrong_gop)[names(rtrong_gop)=="chuso.y"] = "chucai_lo"
+         rtrong_gop$chuso_lo = as.numeric(rtrong_gop$chuso_lo)
+         rtrong_gop = rtrong_gop[with(rtrong_gop,order(rtrong_gop$tk,rtrong_gop$khoanh,rtrong_gop$chuso_lo)),]
+         lo_rtrong_lke = rtrong_gop  
+
+# Chuyen dong 1: Sau tru truoc
+      lo_rtrong_lke$kt_lo_solo = creat_diff_2_1(lo_rtrong_lke$chuso_lo,2,1)
+      lo_rtrong_lke$kt_lo_chulo = creat_diff_2_1(lo_rtrong_lke$chucai_lo,2,1)
+
+# Chuyen dong 2: Truoc tru sau
+      lo_rtrong_lke$kt_lo_solo2 = creat_diff_n_n_1(lo_rtrong_lke$chuso_lo,length(lo_rtrong_lke$chuso_lo))
+      lo_rtrong_lke$kt_lo_chulo2 = creat_diff_n_n_1(lo_rtrong_lke$chucai_lo,length(lo_rtrong_lke$chucai_lo))
+      
+      l_lo_rtrong_lke = split(lo_rtrong_lke,lo_rtrong_lke$tk_khoanh)
+      sl_lo_rtrong_lke = seq_along(l_lo_rtrong_lke)
+      for(i in sl_lo_rtrong_lke) {
+       l_lo_rtrong_lke[[i]]$max =  length(l_lo_rtrong_lke[[i]]$lo)
+      }
+      lo_rtrong_lke = do.call(rbind,l_lo_rtrong_lke)
+      lo_rtrong_lke = subset(lo_rtrong_lke, lo_rtrong_lke$max>=2)
+
+# Loc danh sach lo lien ke
+      lo_rtrong_lke = subset(lo_rtrong_lke,lo_rtrong_lke$kt_lo_solo == 1 & lo_rtrong_lke$kt_lo_chulo == 0 | lo_rtrong_lke$kt_lo_solo2 == 1 & lo_rtrong_lke$kt_lo_chulo2 == 0 | lo_rtrong_lke$kt_lo_solo == 0 & lo_rtrong_lke$kt_lo_chulo == 1 | lo_rtrong_lke$kt_lo_solo2 == 0 & lo_rtrong_lke$kt_lo_chulo2 == 1 )
+      lo_rtrong_lke = subset(lo_rtrong_lke, select = c("tk_khoanh","ldlr","tk","khoanh","lo","dtich","sldlr","namtr","malr3","churung"))
+
+# Loc lan thu 2
+      l_lo_rtrong_lke = split(lo_rtrong_lke,lo_rtrong_lke$tk_khoanh)
+      sl_lo_rtrong_lke = seq_along(l_lo_rtrong_lke)
+      for(i in sl_lo_rtrong_lke) {
+       l_lo_rtrong_lke[[i]]$max =  length(l_lo_rtrong_lke[[i]]$lo)
+      }
+      lo_rtrong_lke = do.call(rbind,l_lo_rtrong_lke)
+      row.names(lo_rtrong_lke) = NULL
+      lo_rtrong_lke = subset(lo_rtrong_lke, lo_rtrong_lke$max>=2)[,-length(names(lo_rtrong_lke))]
+
+      sl_lo_rtrong_lke = length(lo_rtrong_lke$lo)
+############## Xong lo lien ke ##################
+    if(length(lo_rtrong_lke$lo)== 0) {print("Khong co lo rung trong nao co lo lien ke dien tich nho hon 0,5ha, nen khong phai tien hanh gop lo")} else {print(paste("Can ra soat, xem xet gop",sl_lo_rtrong_lke,"lo rung trong co cung tieu khu, khoanh va co tu hai lo lien ke tro len"));lo_rtrong_lke}
+}
+}
+```
+_7.3. Lo rung tu nhien co dien tich nho hon 0,5 ha_
+
+```{r,echo=FALSE}
+# Du lieu: QH + NQH_KK
+#1. Loc du lieu RTN
+        dtich_rtn = map[,c("tk","khoanh","lo","ldlr","dtich","churung")]
+        bang_ldlr = ldlr_qd[,c("ldlr","ma_rtn_rt")]
+        dtich_rtn = merge(dtich_rtn,bang_ldlr,by="ldlr",all = TRUE)
+        dtich_rtn = subset(dtich_rtn,dtich_rtn$ma_rtn_rt == 1 & is.na(dtich_rtn$dtich ) == FALSE)
+#2. Kiem tra lo co dien tich nho hon 0,5 ha
+  if(length(dtich_rtn$lo)!=0){
+        dtich_rtn = subset(dtich_rtn,dtich_rtn$dtich<0.5)[,-7]
+        dtich_rtn = dtich_rtn[order(dtich_rtn$ldlr,dtich_rtn$tk,dtich_rtn$khoanh,dtich_rtn$lo,dtich_rtn$dtich),]
+        if(length(dtich_rtn$ldlr)==0){print("Khong co lo rung tu nhien nao co dien tich nho hon 0,5 ha")} else {print(paste("Co",length(dtich_rtn$ldlr),"lo rung tu nhien co dien tich nho hon 0,5 ha, do la"));dtich_rtn}
+  }
+
+#3. Xac dinh so luong cac lo lien ke can gop
+  if(length(dtich_rtn$lo)!=0) {
+    # So lo nen gop lai
+      # Du lieu dau vao
+         dtich_rtn_05 = dtich_rtn
+         dtich_rtn_05$tk_khoanh = paste(dtich_rtn_05$tk,dtich_rtn_05$khoanh, sep = "_")
+    # So lo danh khong dung thu tu
+     # Tach chu va so 
+         dtich_rtn_05$chuso = str_extract(dtich_rtn_05$lo,"[0-9]+")
+         dtich_rtn_05$chucai = str_extract(dtich_rtn_05$lo,"[aA-zZ]+")
+     # Thay gia tri a,b,c bang so
+        dtich_rtn_05 = merge(dtich_rtn_05,chucai,by="chucai",all.x = TRUE)
+     # Chuyen NA thanh 0
+        dtich_rtn_05[is.na(dtich_rtn_05)] = 0
+     # Ten lo kiem ke
+         names(dtich_rtn_05)[names(dtich_rtn_05)=="chuso.x"] = "chuso_lo"     
+         names(dtich_rtn_05)[names(dtich_rtn_05)=="chuso.y"] = "chucai_lo"
+         dtich_rtn_05$chuso_lo = as.numeric(dtich_rtn_05$chuso_lo)
+         dtich_rtn_05 = dtich_rtn_05[with(dtich_rtn_05,order(dtich_rtn_05$tk,dtich_rtn_05$khoanh,dtich_rtn_05$chuso_lo)),]
+         lo_rtn_lke = dtich_rtn_05
+# Chuyen dong 1: Sau tru truoc
+      lo_rtn_lke$kt_lo_solo = creat_diff_2_1(lo_rtn_lke$chuso_lo,2,1)
+      lo_rtn_lke$kt_lo_chulo = creat_diff_2_1(lo_rtn_lke$chucai_lo,2,1)
+
+# Chuyen dong 2: Truoc tru sau
+      lo_rtn_lke$kt_lo_solo2 = creat_diff_n_n_1(lo_rtn_lke$chuso_lo,length(lo_rtn_lke$chuso_lo))
+      lo_rtn_lke$kt_lo_chulo2 = creat_diff_n_n_1(lo_rtn_lke$chucai_lo,length(lo_rtn_lke$chucai_lo))
+# Loc lan thu 1
+      l_lo_rtn_lke = split(lo_rtn_lke,lo_rtn_lke$tk_khoanh)
+      sl_lo_rtn_lke = seq_along(l_lo_rtn_lke)
+      for(i in sl_lo_rtn_lke) {
+       l_lo_rtn_lke[[i]]$max =  length(l_lo_rtn_lke[[i]]$lo)
+      }
+      lo_rtn_lke = do.call(rbind,l_lo_rtn_lke)
+      lo_rtn_lke = subset(lo_rtn_lke, lo_rtn_lke$max>=2)
+# Loc danh sach lo lien ke
+      lo_rtn_lke = subset(lo_rtn_lke,lo_rtn_lke$kt_lo_solo == 1 & lo_rtn_lke$kt_lo_chulo == 0 | lo_rtn_lke$kt_lo_solo2 == 1 & lo_rtn_lke$kt_lo_chulo2 == 0 | lo_rtn_lke$kt_lo_solo == 0 & lo_rtn_lke$kt_lo_chulo == 1 | lo_rtn_lke$kt_lo_solo2 == 0 & lo_rtn_lke$kt_lo_chulo2 == 1 )
+      lo_rtn_lke = subset(lo_rtn_lke, select = c("tk_khoanh","ldlr","tk","khoanh","lo","dtich","churung"))
+# Loc lan thu 2
+      l_lo_rtn_lke = split(lo_rtn_lke,lo_rtn_lke$tk_khoanh)
+      sl_lo_rtn_lke = seq_along(l_lo_rtn_lke)
+      for(i in sl_lo_rtn_lke) {
+       l_lo_rtn_lke[[i]]$max =  length(l_lo_rtn_lke[[i]]$lo)
+      }
+      lo_rtn_lke = do.call(rbind,l_lo_rtn_lke)
+      row.names(lo_rtn_lke) = NULL
+      lo_rtn_lke = subset(lo_rtn_lke, lo_rtn_lke$max>=2)[,-length(names(lo_rtn_lke))]
+      sl_lo_rtn_lke = length(lo_rtn_lke$lo)
+      if(length(lo_rtn_lke$lo)== 0) {print("Khong co lo rung tu nhien dtich nho hon 0,5ha lien ke nhau, nen khong phai tien hanh gop lo")} else {print(paste("Can ra soat, xem xet gop",sl_lo_rtn_lke,"lo rung tu nhien, dien tích nho hon 0,5ha, co cung tieu khu, khoanh va co tu hai lo lien ke tro len"));lo_rtn_lke}
+   }  
+
+```
+### 8. Kiem tra loai dat, loai rung
+####_8.1. Ten loai dat, loai rung (ldlr)_
+```{r, echo=FALSE}
+# Du lieu: QH + NQH_KK
+# Loc ldlr theo quy dinh
+    ldlr_qd_ldlr = ldlr_qd[,c("ldlr","ma_ldlr_qd")]
+# Loc ldlr kiemke
+    ldlr_kk = map[,c("ldlr","maldlr","tk","khoanh","lo")]
+    colnames(ldlr_kk)[2] = "maldlr_kk"
+# Kiem tra dat ten truong ldlr sai quy dinh
+    kq_ldlr = merge(ldlr_kk,ldlr_qd_ldlr, by= "ldlr",all = TRUE)
+    kq_ldlr_saiten_qd = subset(kq_ldlr,is.na(kq_ldlr$ma_ldlr_qd) == TRUE)
+    if (length(kq_ldlr_saiten_qd$ldlr) == 0) {print("Ket luan: Dat ten ldlr dung theo qui dinh")} else {print(paste("Ket luan: Co", length(kq_ldlr_saiten_qd$ldlr), "lo dat ten thieu/sai ldlr, do la:"));kq_ldlr_saiten_qd[,-6]}
+
+```
+####_8.2. Ma loai dat, loai rung (ldlr)_
+
+```{r, echo=FALSE}
+    kt_maldlr = subset(kq_ldlr,is.na(kq_ldlr$maldlr_kk) == FALSE)
+    kt_maldlr$kiemtra = kt_maldlr$maldlr_kk - kt_maldlr$ma_ldlr_qd
+    kq_ldlr_saima = subset(kt_maldlr,kt_maldlr$kiemtra != 0)
+    kq_ldlr_saima = kq_ldlr_saima[,-7]
+    colnames(kq_ldlr_saima) = c("ldlr","maldlr kiem ke", "tk","khoanh","lo","ma ldlr theo qui dinh")
+    if(length(kq_ldlr_saima$ldlr)==0) {print("Ket luan: Ma ldlr dung theo qui dinh")} else { print(paste("Ket luan: Co",length(kq_ldlr_saima$ldlr), "lo dat thieu/sai ma ldlr, do la:"));kq_ldlr_saima}
+```
+### 9. Nguon goc rung (nggocr)
+
+```
+| TT    |  nggocr                |  Ma so  |
+|------------------------------------------|
+|  1    |  Rung tu nhien         |    1    |
+|  2    |  Rung trong            |    2    |
+|  3    |  Dat chua co rung      |    3    |
+
+```
+```{r, echo=FALSE,message=FALSE}
+# Du lieu: QH + NQH_KK
+# Xac dinh loai dat, loai rung can xac dinh nggocr va ldlr khong can xac dinh nguon goc rung
+    ldlr_nggocr_kk = map_qh0[,c("tk","khoanh","lo","ldlr","nggocr")]
+    ma_ldlr_nggocr = ldlr_qd[,c("ldlr","nggocr_qd")]
+    ma_ldlr_xd_nggocr = subset(ma_ldlr_nggocr,ma_ldlr_nggocr$nggocr_qd == 1) # ldlr: can xac dinh nggocr
+    ma_ldlr_kxd_nggocr = subset(ma_ldlr_nggocr,ma_ldlr_nggocr$nggocr_qd == 0) # ldlr: khong xac dinh nggocr
+# Du lieu xac dinh nggocr
+    map_nggocr_xd = merge(ldlr_nggocr_kk,ma_ldlr_xd_nggocr, by = "ldlr", all.x= TRUE)
+    map_nggocr_xd = subset(map_nggocr_xd,map_nggocr_xd$nggocr_qd == 1)[,-6]
+    map_nggocr_xd$nggocr = as.numeric(as.character(map_nggocr_xd$nggocr))
+    kt_ldlr_nggocr = subset(map_nggocr_xd, map_nggocr_xd$nggocr ==0 | is.na(map_nggocr_xd$nggocr) == TRUE | map_nggocr_xd$nggocr > 3)
+    if(length(kt_ldlr_nggocr$ldlr)==0) {print("Ket luan: Ma nggocr dung theo qui dinh")} else { print(paste("Ket luan: Co",length(kt_ldlr_nggocr$ldlr), "lo thieu/sai ma nggocr, do la:"));kt_ldlr_nggocr}
+# Kiem tra loai dat khong phai xac dinh nggocr
+    map_nggocr_kxd = merge(ldlr_nggocr_kk,ma_ldlr_kxd_nggocr, by = "ldlr", all.x= TRUE)
+    map_nggocr_kxd = subset(map_nggocr_kxd,map_nggocr_kxd$nggocr_qd == 0)[,-6]
+    map_nggocr_kxd$nggocr = as.numeric(as.character(map_nggocr_kxd$nggocr))
+    kt_ldlr_kxd_nggocr = subset(map_nggocr_kxd, map_nggocr_kxd$nggocr !=0 | is.na(map_nggocr_kxd$nggocr) == TRUE)
+    if(length(kt_ldlr_kxd_nggocr$ldlr)!=0) {print(paste("Ra soat lai",length(kt_ldlr_kxd_nggocr$ldlr), "lo rung thieu/sai ma nggocr (nggocr chi xet voi ldlr la rung: RTN, RTG, Rung tai sinh)"));kt_ldlr_kxd_nggocr}
+```
+### 10. Tru luong (mgo,mtn)
+
+```{r, echo=FALSE}
+# Du lieu: Rung trong quy hoach + Rung ngoai qui hoach (muc dich SXgo)
+#8.1. Kiem tra tru luong rung go (ma 1: RTN, Rung trong, Moi trong rung, Tai sinh, Mat nuoc, dat trong, DK)
+    ldlr_mgo_qd = ldlr_qd[,c("ldlr","mgo_min_qd","mgo_max_qd","ma_kt_mgo_mtn")]
+    ldlr_mgo_kk = map_sxgo[,c("tk","khoanh","lo","ldlr","mgo","mgolo","sldlr","nqh","churung")]
+    kt_ldlr_mgo = merge(ldlr_mgo_kk,ldlr_mgo_qd, by = "ldlr", all = TRUE)
+    kt_ldlr_mgo_1 = subset(kt_ldlr_mgo, kt_ldlr_mgo$ma_kt_mgo_mtn == 1)
+    kt_ldlr_mgo_1 = subset(kt_ldlr_mgo_1, is.na(kt_ldlr_mgo_1$mgo) != TRUE)
+    kt_ldlr_mgo_1 = subset(kt_ldlr_mgo_1, is.na(kt_ldlr_mgo_1$mgo_min_qd) != TRUE)
+if(length(kt_ldlr_mgo_1$lo)!= 0){
+# Ket qua kt mgo_min
+    kt_ldlr_mgo_1$kiemtra_min = kt_ldlr_mgo_1$mgo - kt_ldlr_mgo_1$mgo_min_qd
+# Ket qua kt mgo_max
+    kt_ldlr_mgo_1$kiemtra_max = kt_ldlr_mgo_1$mgo_max_qd - kt_ldlr_mgo_1$mgo
+# Ket qua kt mgo
+    kt_ldlr_mgo_sai = subset(kt_ldlr_mgo_1,kt_ldlr_mgo_1$kiemtra_min<0 | kt_ldlr_mgo_1$kiemtra_max < 0 )
+    kt_ldlr_mgo_sai = kt_ldlr_mgo_sai[,c(1:11)]
+    kt_ldlr_mgo_sai = kt_ldlr_mgo_sai[order(kt_ldlr_mgo_sai$tk,kt_ldlr_mgo_sai$khoanh,kt_ldlr_mgo_sai$lo,kt_ldlr_mgo_sai$nqh),]
+    kt_ldlr_mgo_sai = subset(kt_ldlr_mgo_sai,kt_ldlr_mgo_sai$ldlr != "rtk" & kt_ldlr_mgo_sai$sldlr != "C.su")
+    if(length(kt_ldlr_mgo_sai$lo)==0) {print("Ket luan: Cap tru luong/Kieu rung voi RTN, Rung trong dung theo qui dinh")} else { print(paste("Tru luong RTN, RTG: Can ra soat lai",length(kt_ldlr_mgo_sai$lo), "lo rung co tru luong nhu sau:")); kt_ldlr_mgo_sai}
+}
+# Kiem tra moi quan he giua tru luong mgo va mgolo
+    mgo_mgolo = kt_ldlr_mgo_1[,c(1:11)]
+if(length(mgo_mgolo$lo)!=0){
+    mgo_mgolo_sai = subset(mgo_mgolo, mgo_mgolo$mgo == 0 & mgo_mgolo$ mgolo!=0 | mgo_mgolo$mgo != 0 & mgo_mgolo$ mgolo ==0)
+    if(length(mgo_mgolo_sai$lo)!=0){
+    print(paste("Ra soat lai",length(mgo_mgolo_sai$lo), "lo rung co mgo nhung khong co mgolo (hoac co tru luong mgo nhung khong co mgolo"))
+    print(mgo_mgolo_sai)
+    }
+  }
+#8.2. Kiem tra tru luong go hon giao (ma 3: rung hon giao, tru luong phi co mgo va mtn)
+    ldlr_mgo_kk = map[,c("tk","khoanh","lo","ldlr","sldlr","mgo","mtn","mgolo","mtnlo","nqh")]
+    ma_ldlr_hg = subset(ldlr_mgo_qd,ldlr_mgo_qd$ma_kt_mgo_mtn == 3)
+    kt_ldlr_hg = merge(ldlr_mgo_kk,ma_ldlr_hg, by = "ldlr", all.x = TRUE)
+    kt_ldlr_hg = subset(kt_ldlr_hg, kt_ldlr_hg$ma_kt_mgo_mtn == 3)
+    kt_ldlr_hg = subset( kt_ldlr_hg,is.na(kt_ldlr_hg$tk) == FALSE | is.na(kt_ldlr_hg$khoanh) == FALSE)
+if(length(kt_ldlr_hg$tk) == 0) {print("Khong co rung hon giao tre nua")} else {
+    kt_ldlr_hg$kiemtra_min = kt_ldlr_hg$mgo - kt_ldlr_hg$mgo_min_qd
+    kt_ldlr_hg$kiemtra_max = kt_ldlr_hg$mgo_max_qd - kt_ldlr_hg$mgo
+    kt_ldlr_hg_sai = subset(kt_ldlr_hg,kt_ldlr_hg$mgo == 0 | kt_ldlr_hg$mtn == 0 | kt_ldlr_hg$kiemtra_min < 0 | kt_ldlr_hg$kiemtra_max < 0 | kt_ldlr_hg$mgolo == 0 | kt_ldlr_hg$mtnlo == 0 )
+    kt_ldlr_hg_sai =  kt_ldlr_hg_sai[,c(1:12)]
+    if(length(kt_ldlr_hg_sai$lo)==0) {print("Ket luan: Cap tru luong/Kieu rung hon giao dung theo qui dinh")} else { print(paste("Tru luong rung hon giao: Can ra soat lai",length(kt_ldlr_hg_sai$lo), "lo rung co tru luong/Mat do tre nua nhu sau:")); kt_ldlr_hg_sai}
+    }
+
+#8.3 Kiem tra tr luong rung tre nua (ma 2)
+    ldlr_mgo_kk = map[,c("tk","khoanh","lo","ldlr","sldlr","mtn","mtnlo","nqh")]
+    ma_ldlr_tn = subset(ldlr_mgo_qd,ldlr_mgo_qd$ma_kt_mgo_mtn == 2)
+    kt_ldlr_tn = merge(ldlr_mgo_kk,ma_ldlr_tn, by = "ldlr", all.x = TRUE)
+    kt_ldlr_tn = subset(kt_ldlr_tn, kt_ldlr_tn$ma_kt_mgo_mtn == 2)
+    kt_ldlr_tn = subset( kt_ldlr_tn,is.na(kt_ldlr_tn$tk) == FALSE | is.na(kt_ldlr_tn$khoanh) == FALSE)
+if(length(kt_ldlr_tn$lo)==0) {print("Khong co kieu rung tre nua")} else {
+    kt_ldlr_tn$kiemtra_min = kt_ldlr_tn$mtn - kt_ldlr_tn$mgo_min_qd
+    kt_ldlr_tn$kiemtra_max = kt_ldlr_tn$mgo_max_qd - kt_ldlr_tn$mtn
+    kt_ldlr_tn_sai = subset(kt_ldlr_tn, kt_ldlr_tn$mtn == 0 |  kt_ldlr_tn$kiemtra_min <0 |  kt_ldlr_tn$kiemtra_max < 0 | kt_ldlr_tn$mtnlo == 0 )
+    kt_ldlr_tn_sai = kt_ldlr_tn_sai[,c(1:10)]
+    if(length(kt_ldlr_tn_sai$lo) == 0) {print("Kieu trung tre nua: Cap tru luong (mat do)/Kieu rung dung theo qui dinh")} else { print(paste("Kieu rung tre nua: Can ra soat lai",length(kt_ldlr_tn_sai$lo), "lo rung co tru luong (mat do) nhu sau:"));kt_ldlr_tn_sai} 
+}
+```
+### 11. Rung trong (sldlr,namtr,captuoi,ktan,nggocrt,thanhrung)
+####_11.1. Thong tin loai cay (sldlr)_
+
+```{r, echo=FALSE}
+# Du lieu: Rung trong qui hoach + Rung ngoai quy hoach (SX go)
+# Xac dinh data ldlr phai xac dinh ten loai cay
+    rtrong_sldlr = map_sxgo[,c("ldlr","tk","khoanh","lo","dtich","sldlr","namtr","captuoi","ktan","nggocrt","thanhrung","malr3","churung")]
+    sldlr_tenloai = ldlr_qd[,c("ldlr","loaicay")]
+    sldlr_tenloai = sldlr_tenloai[sldlr_tenloai$loaicay == 1,] # Hoac co the dung subset
+    rtrong_sldlr = merge(rtrong_sldlr,sldlr_tenloai, by = "ldlr", all.x = TRUE)
+    rtrong_sldlr = rtrong_sldlr[is.na(rtrong_sldlr$loaicay)==FALSE,]
+    rtrong_sldlr = subset(rtrong_sldlr,select = -loaicay)
+# Xac dinh lo thieu thong tin loai cay
+    kt_rtrong_sldlr_sai = subset(rtrong_sldlr,is.na(rtrong_sldlr$sldlr) == TRUE|rtrong_sldlr$sldlr == 0)
+    if(length(kt_rtrong_sldlr_sai$ldlr)==0) {print("Ket luan: Du thong tin loai cay trong")} else { print(paste("Ket luan: Co",length(kt_rtrong_sldlr_sai$ldlr), "lo thieu thong tin loai cay, do la:")); kt_rtrong_sldlr_sai}
+```
+####_11.2. Nam trong (namtr)_
+
+```{r, echo=FALSE}
+# Du lieu: Rung QH + NQH_SX go
+# Xac dinh data phai xac dinh nam trong
+    rtrong_namtr = rtrong_sldlr[,c("ldlr","tk","khoanh","lo","sldlr","namtr")]
+    rtrong_namtr_sai = subset(rtrong_namtr,rtrong_namtr$namtr == 0 | is.na(rtrong_namtr$namtr) == TRUE |rtrong_namtr$namtr > 2014)
+    if(length(rtrong_namtr_sai$ldlr)==0) {print("Ket luan: truong du lieu namtr du thong tin")} else { print(paste("Ket luan: Co",length(rtrong_namtr_sai$ldlr), "lo thieu/sai thong tin ve nam trong, do la:")); rtrong_namtr_sai}
+```
+####_11.3. Cap tuoi (captuoi)_
+
+```{r, echo=FALSE}
+# Du lieu: Rung QH + NQH_SX go
+    rtrong_captuoi = rtrong_sldlr
+    # So lo thieu thong tin cap tuoi
+    rtrong_captuoi_thieu = subset(rtrong_captuoi,rtrong_captuoi$captuoi == 0 | is.na(rtrong_captuoi$captuoi) == TRUE | rtrong_captuoi$captuoi > 20 )
+    if(length(rtrong_captuoi_thieu$ldlr)==0) {print("Ket luan: truong du lieu captuoi du thong tin")} else { print(paste("Ket luan: Co",length(rtrong_captuoi_thieu$ldlr), "lo thieu thong tin ve cap tuoi, do la:")); rtrong_captuoi_thieu}
+    if(length(rtrong_captuoi$ldlr)!=0){
+    # Kiem tra phan chia cap tuoi
+    rtrong_captuoi$nam2014 = 2014
+    rtrong_captuoi$tuoi_rt_kk = (rtrong_captuoi$nam2014 + 1)-  rtrong_captuoi$namtr
+    rtrong_captuoi$captuoi_rt_nhanh = rtrong_captuoi$tuoi_rt_kk/3
+    rtrong_captuoi$captuoi_rt_nhanh_round = round(rtrong_captuoi$tuoi_rt_kk/3,0)
+    rtrong_captuoi$captuoi_rt_cham =  rtrong_captuoi$tuoi_rt_kk/5
+    rtrong_captuoi$captuoi_rt_cham_round =  round(rtrong_captuoi$tuoi_rt_kk/5,0)
+    # Quy doi ve cap tuoi chuan
+    rtrong_captuoi$captuoi_rt_nhanh_chuan[rtrong_captuoi$captuoi_rt_nhanh < 1] = 1
+    rtrong_captuoi$captuoi_rt_cham_chuan[rtrong_captuoi$captuoi_rt_cham < 1] = 1
+    rtrong_captuoi$captuoi_rt_nhanh_chuan = ifelse(rtrong_captuoi$captuoi_rt_nhanh > rtrong_captuoi$captuoi_rt_nhanh_round, (rtrong_captuoi$captuoi_rt_nhanh_round + 1), rtrong_captuoi$captuoi_rt_nhanh_round )
+    rtrong_captuoi$captuoi_rt_cham_chuan = ifelse(rtrong_captuoi$captuoi_rt_cham > rtrong_captuoi$captuoi_rt_cham_round, (rtrong_captuoi$captuoi_rt_cham_round + 1), rtrong_captuoi$captuoi_rt_cham_round)
+    rtrong_captuoi$captuoi_rt_nhanh_chuan[rtrong_captuoi$namtr == 2014] = 1
+    rtrong_captuoi$captuoi_rt_cham_chuan[rtrong_captuoi$namtr == 2014] = 1
+    # So sanh cap tuoi rung_kk voi rung_kt
+     rtrong_captuoi$nhanh_kt =  rtrong_captuoi$captuoi -  rtrong_captuoi$captuoi_rt_nhanh_chuan
+     rtrong_captuoi$cham_kt =  rtrong_captuoi$captuoi -  rtrong_captuoi$captuoi_rt_cham_chuan
+    # Loc lo co phan loai cap tuoi sai
+      rtrong_captuoi_sai = subset(rtrong_captuoi, rtrong_captuoi$cham_kt !=0 & rtrong_captuoi$nhanh_kt !=0)
+# names(rtrong_captuoi_sai)
+      rtrong_captuoi_sai =  subset(rtrong_captuoi_sai, select = c("ldlr","tk","khoanh","lo","sldlr","captuoi","namtr","tuoi_rt_kk","captuoi_rt_cham_chuan","captuoi_rt_nhanh_chuan"))
+      names(rtrong_captuoi_sai)[c(8,9,10)] = c("tuoi","5nam/captuoi","3nam/captuoi")
+      rtrong_captuoi_sai = rtrong_captuoi_sai[order(rtrong_captuoi_sai$tuoi),]
+    # In cap tuoi sai
+    if(length(rtrong_captuoi_sai$ldlr)==0) {print("Ket luan: Phan loai cap tuoi dung")} else { print(paste("Ket luan: Co",length(rtrong_captuoi_sai$ldlr), "lo sai thong tin ve cap tuoi, do la cac lo:")); rtrong_captuoi_sai}
+}
+```
+####_11.4. Khep tan_
+
+```{r, echo=FALSE}
+# Du lieu: Rung QH + NQH_SX go
+    rtrong_ktan = rtrong_sldlr[,c("ldlr","tk","khoanh","lo","sldlr","namtr","ktan")]
+    rtrong_ktan_sai = subset(rtrong_ktan,rtrong_ktan$ktan == 0 | is.na(rtrong_ktan$ktan) == TRUE | rtrong_ktan$ktan > 10)
+    if(length(rtrong_ktan_sai$ldlr)==0) {print("Ket luan: Truong du lieu khep tan du thong tin")} else { print(paste("Ket luan: Co",length(rtrong_ktan_sai$ldlr), "lo thieu/sai thong tin ve nam khep tan, do la cac lo:")); rtrong_ktan_sai}
+
+```
+####_11.5. Nguon goc rung (nggocrt)_
+
+```
+| TT    |  nggocrt                         |  Ma so  |
+|----------------------------------------------------|
+|  1    |  Trong tren dat chua co rung     |    1    |
+|  2    |  Trong tren dat da co rung       |  	2    |
+|  3    |  Tai sinh choi tu rung trong     |    3    |
+
+```
+```{r,echo=FALSE}
+# Du lieu: Rung QH + NQH_SX go
+    rtrong_nggocrt = dl_rtrong # Lo thong tin dien tich ve rung trong
+    rtrong_nggocrt_sai = subset(rtrong_nggocrt,rtrong_nggocrt$nggocrt == 0 | is.na(rtrong_nggocrt$nggocrt) == TRUE | rtrong_nggocrt$nggocrt > 3)
+    if(length(rtrong_nggocrt_sai$ldlr)==0) {print("Ket luan: Truong du lieu nggocrt du thong tin")} else { print(paste("Ket luan: Co",length(rtrong_nggocrt_sai$ldlr), "lo thieu/sai thong tin ve nggocrt, do la cac lo:")); rtrong_nggocrt_sai}
+
+```
+####_11.6. Thanh rung_
+
+```
+| TT    |  Thanh rung        |  Ma so  |
+|--------------------------------------|
+|  1    |  Da thanh rung     |    1    |
+|  2    |  Chua thanh rung   |    2    |
+
+```
+
+```{r,echo=FALSE}
+# Du lieu: Rung QH + NQH_SX go
+    rtrong_thanhrung = map_sxgo[,c("ldlr","tk","khoanh","lo","sldlr","namtr","mgo","mgolo","captuoi","ktan","thanhrung","churung")]
+    sldlr_tenloai = ldlr_qd[,c("ldlr","loaicay")]
+    sldlr_tenloai = sldlr_tenloai[sldlr_tenloai$loaicay == 1,] # Hoac co the dung subset
+    rtrong_thanhrung = merge(rtrong_thanhrung,sldlr_tenloai, by = "ldlr", all.x = TRUE)
+    rtrong_thanhrung = rtrong_thanhrung[is.na(rtrong_thanhrung$loaicay)==FALSE,]
+    rtrong_thanhrung = subset(rtrong_thanhrung,select = -loaicay)
+    rtrong_thanhrung_sai = subset(rtrong_thanhrung,rtrong_thanhrung$thanhrung == 0 | is.na(rtrong_thanhrung$thanhrung) == TRUE | rtrong_thanhrung$thanhrung >2)
+    if(length(rtrong_thanhrung_sai$thanhrung)==0) {print("Ket luan: Truong du lieu thanhrung du thong tin")} else { print(paste("Ket luan: Co",length(rtrong_thanhrung_sai$ldlr), "lo thieu/sai thong tin ve ma thanhrung, do la cac lo:")); rtrong_thanhrung_sai}
+  #Nam trong nho hon 2 nam nhung danh ma thanh rung
+    rtrong_thanhrung_rasoat = subset(rtrong_thanhrung,rtrong_thanhrung$thanhrung == 1 & rtrong_thanhrung$namtr > 2011)
+ if(length(rtrong_thanhrung_rasoat$thanhrung)!=0) { print(paste("Ket luan: Ra soat lai",length(rtrong_thanhrung_rasoat$thanhrung), "lo co thong tin thanhrung sau:")); rtrong_thanhrung_rasoat}
+
+```
+### 12. Lap dia
+```
+|-----------------------------------------------|
+| TT  | Ma so   |  Ky hieu    |   Ten lap dia   |
+|-----------------------------------------------|
+|  1  |   1     |  NDAT       |   Nui dat       |
+|  2  |   2     |  NDA        |   Nui da        |
+|  3  |   3     |  NM         |   Ngap man      |
+|  4  |   4     |  NP         |   Ngap phen     |
+|  5  |   5     |  NG         |   Ngap ngot     |
+|  6  |   6     |  CAT        |   Bai cat       |
+|-----------------------------------------------|
+```
+```{r, echo=FALSE}
+# Du lieu: Rung QH + NQH_KK
+  lapdia_qd = ldlr_qd[,c("ldlr","lapdia")]
+  colnames(lapdia_qd)[2] = "lapdia_qd"
+  lapdia_kk = map[,c("ldlr","tk","khoanh","lo","lapdia")]
+  colnames(lapdia_kk)[5] = "lapdia_kk"
+  kt_lapdia = merge(lapdia_kk,lapdia_qd,by = "ldlr",all = TRUE)
+  kt_lapdia = subset(kt_lapdia, is.na(kt_lapdia$lo) == FALSE)
+  kt_lapdia$kiemtra = kt_lapdia$lapdia_qd - kt_lapdia$lapdia_kk
+  kt_lapdia_sai = subset(kt_lapdia,is.na(kt_lapdia$kiemtra) == TRUE |kt_lapdia$kiemtra != 0 | kt_lapdia$kiemtra >6)
+  kt_lapdia_sai = kt_lapdia_sai[,c(1:6)]
+  colnames(kt_lapdia_sai)[c(5,6)] = c("lapdia_kiemke","lapdia_quidinh")
+  if(length(kt_lapdia_sai$ldlr)==0) {print("Ket luan: ma lap dia dung theo qui dinh")} else { print(paste("Ket luan: Can ra soat lai ",length(kt_lapdia_sai$ldlr), "ma lap dia cua cac lo sau:")); kt_lapdia_sai}
+
+```
+### 13. Muc dich su dung (mdsd)
+```
+|---------------BANG MA MUC DICH SU DUNG---------------|
+
+|------------------------------------------------------|
+| TT  | Ma so |  Ky hieu  |   Muc dich su dung         |
+|------------------------------------------------------|
+|  1  |   1   |    PHDN   |   Phong ho dau nguon       |
+|  2  |   2   |    PHCS   |   Phong ho chan song       |
+|  3  |   3   |    PHCC   |   Phong ho chan cat        |
+|  4  |   4   |    PHMS   |   Phong ho moi sinh        |
+|  5  |   5   |    VQG    |   Vuon quoc gia            |
+|  6  |   6   |    BTTN   |   Bon ton thien nhien      |
+|  7  |   7   |    NCKH   |   Nghien cuu khoa hoc      |
+|  8  |   8   |    VHCQ   |   Rung lich su VHCQ        |
+|  9  |   9   |    SXGL   |   San xuat go lon          |
+| 10  |  10   |    SXGN   |   San xuat go nho          |
+| 11  |  11   |    SXTN   |   San xuat tre nua         |
+| 12  |  12   |    MDK    |   Muc dich san xuat khac   |
+|------------------------------------------------------|
+```
+####_13.1. Lo thieu thong tin mdsd_
+```{r, echo=FALSE}
+# Du lieu: Rung QH + NQH_SX go
+# PP kiem tra: B1: loc thong tin lo rung phai danh ma_mdsd, sau do loc lo rung thieu mdsd
+  mdsd_kk = map_sxgo[,c("tk","khoanh","lo","ldlr","mdsd","malr3","mamdsd")] # Muc dich su dung theo ldlr_kk
+# Liet ke loai dat loai rung phai danh muc dich su dung (Ba loai rung)
+  qk_kt_mdsd_ldlr = ldlr_qd[,c("ldlr","r_mdsd")] 
+  qk_kt_mdsd_ldlr = subset(qk_kt_mdsd_ldlr,qk_kt_mdsd_ldlr$r_mdsd == 1) # Liet ke ldlr phai xac dinh muc dich su dung
+# Gop hai data de so sanh
+  merge_ldlr_mdsd = merge(mdsd_kk,qk_kt_mdsd_ldlr,by = "ldlr",all.x = TRUE)
+  merge_ldlr_mdsd = subset(merge_ldlr_mdsd,merge_ldlr_mdsd$r_mdsd == 1)
+  merge_ldlr_mdsd = subset(merge_ldlr_mdsd,select = -c(r_mdsd))
+  kt_mdsd_kk_thieu = subset(merge_ldlr_mdsd,is.na(merge_ldlr_mdsd$mdsd)==TRUE | merge_ldlr_mdsd$mdsd == "0")
+  kt_mdsd_kk_thieu = subset(kt_mdsd_kk_thieu,select = c("ldlr","tk","khoanh","lo","mdsd"))
+  if (length(kt_mdsd_kk_thieu$ldlr) == 0) {print("Ket luan: Truong du lieu mdsd du thong tin")} else {print(paste("Ket luan: Co ",length(kt_mdsd_kk_thieu$ldlr), "lo thieu thong tin mdsd, do la:"));kt_mdsd_kk_thieu}
+
+```
+_13.2. Ten mdsd_
+
+```{r,echo=FALSE}
+# Du lieu: Rung QH + NQH_SX go
+# Ten truong du lieu
+# PP:loc ten mdsd da nhap, sau do gop voi ten mdsd theo qui dinh, neu ten mdsd_kk khong trung voi ten mdsd_qd --> sai.
+    ten_mdsd_qd = mdsd_qd[,c("mdsd_qd","ma_mdsd_qd","malr3_qd")]
+    names(ten_mdsd_qd)[1] = "mdsd"
+    ten_mdsd_kk = data.frame(unique(mdsd_kk$mdsd))
+    ten_mdsd_kk$ma_kt = 1
+    names(ten_mdsd_kk)[1] = "mdsd"
+    kt_ten_mdsd = merge(ten_mdsd_kk,ten_mdsd_qd, by= "mdsd", all.x = T)
+    kt_ten_mdsd_sai = subset(kt_ten_mdsd,is.na(kt_ten_mdsd$ma_mdsd_qd) == TRUE)
+    if (length(kt_ten_mdsd_sai$mdsd) == 0) {print("Ket luan: Ten mdsd dung theo qui dinh")} else {print(paste("Ket luan: Co ",length(kt_ten_mdsd_sai[,1]), "ten mdsd sai qui dinh, do la:"));as.character(kt_ten_mdsd_sai$mdsd)}
+```
+### 14. Ma mdsd
+
+```{r, echo=FALSE}
+# Du lieu: Rung QH + NQH_SX go
+# Loc thong tin ldlr phai danh ma mdsd
+    # merge_ldlr_mdsd: truong du lieu thong tin loai dat loai rung phai danh ma (muc 12.1)
+    # Cach kiem tra: ma muc dich su dung danh so tu 1-12, kiem tra loai hinh mdsd da danh ma va so sanh voi ma theo qui dinh
+    # Lo rung phai danh ma so la:
+    ma_mdsd_kk = merge_ldlr_mdsd[,c(2:5,7)]
+    names(ma_mdsd_kk)[5] = "ma_mdsd_kk"
+    ma_mdsd_qd = mdsd_qd[,c("mdsd_qd","ma_mdsd_qd")]
+    names(ma_mdsd_qd)[1] = "mdsd"
+    kt_ma_mdsd = merge(ma_mdsd_kk, ma_mdsd_qd,by = "mdsd",all.x = TRUE)  # all.x - ghep ten mdsd theo cac lo rung_kk
+    kt_ma_mdsd$kiemtra_ma_mdsd = kt_ma_mdsd$ma_mdsd_kk - kt_ma_mdsd$ma_mdsd_qd
+    kt_ma_mdsd_sai = subset(kt_ma_mdsd,is.na(kt_ma_mdsd$kiemtra_ma_mdsd)==TRUE | kt_ma_mdsd$kiemtra_ma_mdsd != 0 | kt_ma_mdsd$kiemtra_ma_mdsd > 12)
+    kt_ma_mdsd_sai = kt_ma_mdsd_sai[,-7]
+    if(length(kt_ma_mdsd_sai$mdsd)==0) {print("Ket luan: truong du lieu mamdsd dung theo qui dinh")} else { print(paste("Ket luan: Can ra soat lai",length(kt_ma_mdsd_sai$mdsd),"lo rung co ma mamdsd sau:"));kt_ma_mdsd_sai}
+```
+### 15. Ma ba loai rung (malr3; RPH - ma 1, RDD - ma 2, RSX - ma 3)
+
+```
+| TT    |  Loai rung         |  Ma so  |
+|--------------------------------------|
+|  1    |  Rung phong ho     |    1    |
+|  2    |  Rung dac dung     |    2    |
+|  3    |  Rung san xuat     |    2    |
+```
+```{r, echo=FALSE}
+# Du lieu: Rung QH + NQH_SX go
+# PP kiem tra: B1: loc cac lo rung co gan mdsd (truong du lieu merge_ldlr_mdsd, muc 12.1), day cung la nhung lo rung duoc phan voi 3 muc dich dac dung, san xuat, phong ho ; B2: So sanh malr3_qd voi malr3_kk o cung loai hinh mdsd de ket luan.
+    # Lo rung kiem ke co gan malr3 la:
+    malr3_qd = mdsd_qd[,c("mdsd_qd","malr3_qd")]  # Truong du lieu mdsd gan voi 3 ma ph, dd, sx theo qui dinh
+    names(malr3_qd)[1] = "mdsd"
+    malr3_kk = map_qh0[,c("tk","khoanh","lo","mdsd","malr3","nqh")]
+    names(malr3_kk)[5] = "malr3_kk"
+    kt_malr3 = merge(malr3_kk,malr3_qd,by = "mdsd",all.x = TRUE)
+    kt_malr3$malr3_kk = as.numeric(as.character(kt_malr3$malr3_kk))
+    kt_malr3$kiemtra_malr3 = kt_malr3$malr3_kk - kt_malr3$malr3_qd
+    kt_malr3_sai = subset(kt_malr3,is.na(kt_malr3$kiemtra_malr3)==TRUE | kt_malr3$kiemtra_malr3 != 0| kt_malr3$kiemtra_malr3> 3)
+    kt_malr3_sai = kt_malr3_sai[,-8]
+    if(length(kt_malr3_sai$mdsd)==0) {print("Ket luan: truong du lieu malr3 dung theo qui dinh")} else { print(paste("Ket luan: Can ra soat lai",length(kt_malr3_sai$mdsd),"lo rung co ma malr3 sau:"));kt_malr3_sai}
+
+```
+### 16. Doi tuong su dung (dtuong)
+
+```
+|---------------BANG MA DOI TUONG SU DUNG--------------|
+
+|------------------------------------------------------|
+| TT  | Ma so |  Ky hieu  |   Doi tuong su dung        |
+|------------------------------------------------------|
+|  1  |   1   |    HGD    |   Ho gia dinh, ca nhan     |
+|  2  |   2   |    CD     |   Cong dong                |
+|  3  |   3   |    UBNDX  |   Uy ban nhan dan xa       |
+|  4  |   4   |    BQLRPH |   Ban quan ly rung phong ho|
+|  5  |   5   |    LTQD   |   Lam truong quoc doanh    |
+|  6  |   6   |    CTLN   |   Cong ty lam nghiep       |
+|  7  |   7   |    DNTN   |   Doanh nghiep tu nhan     |
+|  8  |   8   |    DNNN   |   Doanh nghiep nuoc ngoai  |
+|  9  |   9   |    KHAC   |   Doi tuong khac           |
+| 10  |  10   |    BQLRDD |   Ban quan ly rung dac dung|
+| 11  |  11   |    DVVT   |   Don vi vu trang          |
+|------------------------------------------------------|
+```
+```{r, echo=FALSE}
+# Du lieu: Rung QH + NQH_KK
+# Noi dung: 1. - Kiem tra xem so lo thieu thong tin; 2 - Kiem tra danh ma ngoai khoang qui dinh(1-11)
+    dtuong_kk = map[,c("tk","khoanh","lo","dtuong")]
+    kt_dtuong_sai = subset(dtuong_kk,dtuong_kk$dtuong == 0 | is.na(dtuong_kk$dtuong) == TRUE | dtuong_kk$dtuong > 11)
+    if(length(kt_dtuong_sai$tk)==0) {print("Ket luan: truong du lieu doi tuong du thong tin va ma dtuong dung theo qui dinh")} else { print(paste("Ket luan: Can ra soat lai",length(kt_dtuong_sai$tk),"lo rung thieu/sai dtuong sau:")); kt_dtuong_sai}
+
+```
+### 17. Moi quan he chu rung va ma doi tuong 
+#### _17.1. Thong tin chu rung_
+```{r, echo=FALSE}
+# Du lieu: Rung QH + NQH_KK
+  churung_kk = map[,c("tk","khoanh","lo","churung")]
+  churung_kk_thieu = subset(churung_kk,is.na(churung_kk$churung)==TRUE | churung_kk$churung == 0)
+  if (length(churung_kk_thieu$churung) == 0) {print("Ket luan: Truong du lieu churung du thong tin")} else {print(paste("Ket luan: Co ",length(churung_kk_thieu$churung), "lo thieu/sai thong tin ve chu rung, do la:"));churung_kk_thieu}
+```
+#### _17.2. Quan he chu rung va ma doi tuong_
+```{r,echo=FALSE}
+# Du lieu: Rung QH + NQH_KK
+  churung_dtuong_kk = map[,c("churung","dtuong")]
+  churung_dtuong_lap = unique( churung_dtuong_kk[c("churung","dtuong")])
+  kt_churung_dtuong = as.data.frame(xtabs(~ churung, data = churung_dtuong_lap))
+  ten_churung_dtuong = subset(kt_churung_dtuong,kt_churung_dtuong$Freq > 1)
+  kt_churung_dtuong_sai = merge(ten_churung_dtuong,churung_dtuong_lap,by.x = "churung")
+  kt_churung_dtuong_sai = kt_churung_dtuong_sai[,-2]
+  if (length(kt_churung_dtuong_sai$churung) == 0) {print("Ket luan: Ten chu rung voi ma dtuong dung")} else {print(paste("Ket luan: Ra soat lai",length(kt_churung_dtuong_sai$churung), "lo co ten chu rung va ma dtuong sau:"));kt_churung_dtuong_sai}
+```
+#### _17.3. Quan he ma doi tuong va chu rung (tham khao)_
+```{r,echo=FALSE}
+# Du lieu: Rung QH + NQH_KK
+  dtuong_churung_kk = map[,c("dtuong","churung")]
+  dtuong_churung_lap = unique( dtuong_churung_kk[c("dtuong","churung")])
+  kt_dtuong_churung = as.data.frame(xtabs(~ dtuong, data = dtuong_churung_lap))
+  ten_dtuong_churung = subset(kt_dtuong_churung,kt_dtuong_churung$Freq > 1)
+  kt_dtuong_churung_sai = merge(ten_dtuong_churung,dtuong_churung_lap,by.x = "dtuong")
+  kt_dtuong_churung_sai = kt_dtuong_churung_sai[,-2]
+  if (length(kt_dtuong_churung_sai$dtuong) == 0) {print("Ket luan: ma dtuong va churung la dung")} else {print(paste("Ket luan: Ra soat lai ten chu rung co ma dtuong sau:"));kt_dtuong_churung_sai}
+```
+### 18. Chu rung va ma chu rung
+#### _18.1. Kiem tra danh ma chu rung nhom I_
+```{r,echo=FALSE}
+# # Du lieu: Rung QH + NQH_KK
+#   # Noi dung: kiem tra co du ma chu rung khong, ma chu rung nao thieu, ma chu rung nao danh thua
+#   dl_churung = map[,c("huyen","xa","tk","khoanh","lo","dtuong","churung","machur")]
+#   # Loc danh sach chu rung nhom I
+#   churung_n1 = as.data.frame(subset(dl_churung, dl_churung$dtuong < 4))
+# 
+# #   l_churung_n1 = split(churung_n1,churung_n1$xa)
+# #   sl_xa = seq_along(l_churung_n1)
+# 
+#   # Loc danh sach chu rung thua sau lenh split
+#   ten_xa = as.data.frame(unique(churung_n1$xa))
+#   names(ten_xa) = "ten_xa"
+#   ten_xa$kiem_ke = 1
+#   l_churung_n1 = split(churung_n1,churung_n1$xa)
+#   ten_xa_full = as.data.frame(names(l_churung_n1))
+#   names(ten_xa_full) = "ten_xa"
+#   ten_xa_gop = merge(ten_xa, ten_xa_full, by = "ten_xa",all.y = TRUE)
+#   ten_xa_rm = subset(ten_xa_gop,is.na(ten_xa_gop$kiem_ke)== TRUE)
+#   ten_xa_rm = ten_xa_rm[,1]
+#   l_churung_n1[which(names(l_churung_n1) %in% ten_xa_rm)] = NULL
+# # Kiem machur thua, thieu
+#   so_xa = seq_along(l_churung_n1)
+#   l_machur_kk = list()
+#   l_machur_qd = list()
+#   merge_machr_kk_qd = list()
+#   for(i in so_xa) {
+#     l_churung_n1[[i]] = unique(l_churung_n1[[i]][c("churung","machur","xa")])
+#     l_churung_n1[[i]] = l_churung_n1[[i]][order(l_churung_n1[[i]]$machur),]
+#     l_churung_n1[[i]]$machur_qd = seq_along(l_churung_n1[[i]][,1])
+#     l_churung_n1[[i]]$kiemtra = 1
+#     l_machur_kk[[i]] = l_churung_n1[[i]][,c(2,3)]
+#     l_machur_qd[[i]] = l_churung_n1[[i]][,c(4,5,3)]
+#     names(l_machur_qd[[i]])[1] = "machur"
+#     merge_machr_kk_qd[[i]] = merge(l_machur_kk[[i]],l_machur_qd[[i]],by = "machur", all = TRUE)
+#  }
+#   merge_machr_kk_qd = do.call(rbind,merge_machr_kk_qd)
+#   merge_machr_kk_qd = merge_machr_kk_qd[,c(1,2,4)]
+#   names(merge_machr_kk_qd)[c(2,3)] = c("machur_thieu","machur_thua")
+#   kt_churung_machur_sai = merge_machr_kk_qd
+# # Ket luan:
+#   if (length(kt_churung_machur_sai$machur) == 0) {print("Ket luan: Machur dat dung qui dinh")} else {print(paste("Ket luan: Ra soat lai",length(kt_churung_machur_sai$machur), "lo co ten chu rung va machur sau:"));kt_churung_machur_sai}
+#   # Kiem tra machur danh sai
+#   kt_churung_machur_danhsai = subset(churung_n1,is.na(churung_n1$machur)== TRUE | churung_n1$machur== 0 | churung_n1$machur > 8099)
+#   if (length(kt_churung_machur_danhsai$machur) != 0) {print(paste("Ra soat lai",length(kt_churung_machur_danhsai$machur), "chu rung co machur sau:"));kt_churung_machur_danhsai}
+#   
+```
+####_18.2. Chu rung nhom II_
+##### 18.2.1 So luong chu rung
+```{r,echo=FALSE}
+#   churung_n2 = subset(dl_churung, dl_churung$dtuong > 3)
+# # Loc chu rung nhom 2 co dien tich nam tren hai tinh
+#   churung_n2_2tinh = subset(churung_n2,churung_n2$machur>9500)
+#   churung_n2_2tinh = unique(churung_n2_2tinh[c("churung","machur")])
+#   if(length(churung_n2_2tinh$machur) == 0) {print("@ Khong co chu rung nao co dien tich nam tren danh gioi hai tinh")} else {print(paste("Co",length(churung_n2_2tinh$machur), "chu rung nam tren danh gioi hai tinh, do la"));churung_n2_2tinh}
+# # Loc chu rung nhom 2 co dien tich nam trong tinh
+#   churung_n2_1tinh = subset(churung_n2,churung_n2$machur<9501| churung_n2$machur > 8099)
+#   churung_n2_machur = churung_n2_1tinh
+#   # So chu rung danh thieu, danh thua
+#     churung_n2_machur = churung_n2[,c("churung","machur")]
+#     churung_n2_machur = unique(churung_n2_machur[c("churung","machur")])
+#     # Sap xep machur
+#     churung_n2_machur = churung_n2_machur[order(churung_n2_machur$machur),]
+#     churung_n2_machur$machur_kt = seq_along(churung_n2_machur$machur) + 9000
+#     # So luong chu rung nhom II nam trong pham vi cua tinh
+#   if(length(churung_n2_machur$machur)==0) {print("@ Khong co chu rung nhom II nam trong pham vi cua tinh")} else {
+#     print(paste("@ So luong chu rung nhom II nam trong pham vi cua tinh: co",length(churung_n2_machur$machur), "chu rung, do la:")); churung_n2_machur[,c(1:2)]}
+```
+##### 18.1.2 Kiem tra danh ma chu rung nhom II (Loc ra ma chu rung danh thieu,ma danh thua)
+
+```{r,echo=FALSE}
+# # Du lieu: Rung QH + NQH_KK
+# # So machur danh sai
+#     churung_n2_machur_kk = churung_n2_machur[,c(1:2)]
+#     churung_n2_machur_kt = churung_n2_machur[,c(3,1)]
+#     names(churung_n2_machur_kt)[1] = "machur"
+#     # Gop 2 ma chu rung kiem ke va ma chu rung danh so dung
+#     merge_churung_n2_kk_kt = merge(churung_n2_machur_kk,churung_n2_machur_kt,by = "machur",all = TRUE)
+#     names(merge_churung_n2_kk_kt)[c(2,3)] = c("machur_thieu","machur_thua")
+#     #merge_churung_n2_kk_kt$goi_y_machur = merge_churung_n2_kk_kt$machur_thua
+#     # In ra man hinh
+#     if (length(merge_churung_n2_kk_kt$machur) != 0) {print(paste("@ So luong machur thieu/thua la",length(merge_churung_n2_kk_kt$machur), "machur, cu the nhu sau:"));merge_churung_n2_kk_kt}
+# # So machur danh lap lai (mot chu rung co hai ma)
+#     churung_n2_machur_kk = churung_n2[,c("churung","machur")]
+#     churung_n2_machur_lap = unique(churung_n2_machur_kk[c("churung","machur")])
+# if(length(churung_n2_machur_lap$churung)==0){print("Khong co chu rung nhom II,nen khong xay ra truong hop ma chu rung danh thieu va danh thua ma")} else {
+#     kt_churung_n2_machur = as.data.frame(xtabs(~ churung, data = churung_n2_machur_lap))
+#     ten_churung_n2_machur = subset(kt_churung_n2_machur,kt_churung_n2_machur$Freq > 1)
+#     kt_churung_n2_machur_sai = merge(ten_churung_n2_machur,churung_n2_machur_lap,by.x = "churung")
+#     kt_churung_n2_machur_sai = kt_churung_n2_machur_sai[,-2]
+#     if (length(kt_churung_n2_machur_sai$churung) != 0) {print(paste("Ket luan: Ra soat lai",length(kt_churung_n2_machur_sai$churung), "lo co ten chu rung va machur sau:"));kt_churung_n2_machur_sai}
+# }
+```
+### 19. Tranh chap (trchap)
+
+```
+| TT    |  Tranh chap        |  Ma so  |
+|--------------------------------------|
+|  1    |  Tranh chap        |    1    |
+|  2    |  Khong tranh chap  |    2    |
+
+```
+```{r,echo=FALSE}
+# # Du lieu: Rung QH + NQH_KK
+#     trchap_kk = map[,c("ldlr","tk","khoanh","lo","sldlr","churung","trchap")]
+# # Kiem tra thong tin
+#     trchap_kk_thieu = subset(trchap_kk,trchap_kk$trchap == 0 | trchap_kk$trchap > 2| is.na(trchap_kk$trchap) == TRUE)
+#     # In thong bao so lo thieu thong tin
+#     if(length(trchap_kk_thieu$trchap)==0) {print("@ Truong du lieu trchap du thong tin")} else { print(paste("@ Co",length(trchap_kk_thieu$trchap), "lo thieu/sai thong tin trchap, do la cac lo:")); trchap_kk_thieu}
+# # Ty le tranh chap
+#     trchap_kk_ma2 = subset(trchap_kk,trchap_kk$trchap == 2)
+#     so_lo_trchap = length(trchap_kk_ma2$trchap)
+#     tyle_trchap = round(so_lo_trchap*100/length(trchap_kk$trchap),2)
+#     if(tyle_trchap !=0) {print(paste("@ Tong so lo trchap la",so_lo_trchap," lo, chiem ty le",tyle_trchap,"% tong so lo kiem ke"))}#;trchap_kk_ma2}
+
+```
+### 20. Quyen su dung dat (quyensd)
+
+```
+| TT    |  Quyen su dung dat                          |  Ma so  |
+|---------------------------------------------------------------|
+|  1    |  Co giay chung nhan quyen su dung dat 01    |    1    |
+|  2    |  Co giay chung nhan quyen su dung dat 02    |    2    |
+|  3    |  Co giay chung nhan quyen su dung dat khac  |    3    |
+|  4    |  Chua co giay chung nhan quyen su dung dat  |    4    |
+```
+```{r,echo=FALSE}
+# Du lieu: Rung QH + NQH_KK
+    quyensd_kk = map[,c("ldlr","tk","khoanh","lo","sldlr","churung","namtr","quyensd")]
+# Kiem tra thong tin
+    quyensd_kk_thieu = subset(quyensd_kk,quyensd_kk$quyensd == 0 | quyensd_kk$quyensd > 4| is.na(quyensd_kk$quyensd) == TRUE)
+    # In thong bao so lo thieu thong tin quyensd
+    if(length(quyensd_kk_thieu$quyensd)==0) {print("@ Truong du lieu quyensd du thong tin")} else { print(paste("@ Co",length(quyensd_kk_thieu$quyensd), "lo thieu/sai thong tin quyensd, do la cac lo:")); quyensd_kk_thieu}
+# Ty le lo khong co quyensd
+    quyensd_kk_ma4 = subset(quyensd_kk,quyensd_kk$quyensd == 4)
+    so_lo_quyensd = length(quyensd_kk_ma4$quyensd)
+    tyle_quyensd = round(so_lo_quyensd*100/length(quyensd_kk$quyensd),2)
+    if(tyle_quyensd !=0) {print(paste("@ So lo chua co giay chung nhan quyen su dung la",so_lo_quyensd,"lo, chiem",tyle_quyensd,"% tong so lo"))}#;quyensd_kk_ma4}
+
+```
+### 21. Moi quan he giua quyen su dung (quyensd) va tranh chap (trchap)
+
+```{r,echo=FALSE}
+# Du lieu: Rung QH + NQH_KK
+#20.1. Co quyen su dung(ma 1,2,3) --> khong co tranh chap (ma 2)(Neu co quyensd, ma trchap la 1 --> sai)
+    quyensd_trchap_kk = map[,c("ldlr","tk","khoanh","lo","sldlr","churung","namtr","quyensd","trchap","nguoitrch")]
+  # Loc thong tin co giay chung nhan quyen su dung (ma 1,2,3)
+    quyensd__ma123_trchap_kk = subset(quyensd_trchap_kk,quyensd_trchap_kk$quyensd >0 & quyensd_trchap_kk$quyensd <4 )
+    quyensd__ma123_trchap_ma1_kk = subset(quyensd__ma123_trchap_kk,quyensd__ma123_trchap_kk$trchap == 1)
+    if(length(quyensd__ma123_trchap_ma1_kk$quyensd) !=0) {print(paste("@ Ra soat lai",length(quyensd__ma123_trchap_ma1_kk$quyensd),"lo sau (lo da duoc cap giay chung nhan quyen sd dat, nhung lai co tranh chap"));quyensd__ma123_trchap_ma1_kk} else {print("@ Thong tin ve quyen su dung va tranh chap dung")}
+
+```
+### 22. Thoi han su dung (thoihansd)
+
+```{r,echo=FALSE}
+# Du lieu: Rung QH
+# Lo duoc cap giay chung nhan quyen su dung dat (quyensd - ma 1,2,3), thi co thoi han su dung (neu ko co ghi 2100)
+  # Loc lo co gap giay chung nhan quyensd dat - thoi han su dung
+    quyensd_thoihansd = map_qh0[,c("ldlr","tk","khoanh","lo","sldlr","churung","namtr","quyensd","thoihansd")]
+    quyensd_ma123_thoihansd = subset(quyensd_thoihansd,quyensd_thoihansd$quyensd > 0 & quyensd_thoihansd$quyensd <4)
+  # Lo thieu thong tin thoihansd
+    quyensd_ma123_thoihansd_thieu = subset(quyensd_ma123_thoihansd,quyensd_ma123_thoihansd$thoihansd == 0 | is.na(quyensd_ma123_thoihansd$thoihansd) == TRUE | quyensd_ma123_thoihansd$thoihansd <2014 | quyensd_ma123_thoihansd$thoihansd > 2100)
+    if(length(quyensd_ma123_thoihansd_thieu$quyensd)==0) {print("@ Truong du lieu thoihansd du thong tin")} else {
+    print(paste("@ Co",length(quyensd_ma123_thoihansd_thieu$quyensd), "thieu thong tin ve thoihansd, do la:")); quyensd_ma123_thoihansd_thieu}
+
+
+```
+### 23. Tinh trang khoan
+
+```
+| TT    |  Tinh trang khoan  |  Ma so  |
+|--------------------------------------|
+|  1    |  Nhan khoan        |    1    |
+|  2    |  Khong nhan khoan  |    2    |
+
+```
+```{r,echo=FALSE}
+# Du lieu: Rung trong quy hoach
+# Du lieu khoan: loai dat, loai rung trong quy hoach, voi doi tuong la rung tu nhien, rung trong hoac cay go tai sinh
+  #Ghi chu: neu muon thay doi ldlr phai xac dinh khoan, thay doi bang ma trong truongdulieu.xls
+      khoan_kk = map_qh0[,c("ldlr","tk","khoanh","lo","sldlr","dtuong","churung","quyensd","nqh","khoan")]
+#     # Du lieu khoan, trong quy hoach
+#       khoan_kk = subset(khoan_kk,khoan_kk$nqh == 0)
+    # Loc ldlr giao khoan
+      ma_ldlr_khoan_qd = ldlr_qd[,c("ldlr","khoan")]
+      ma_ldlr_khoan_qd = subset(ma_ldlr_khoan_qd,ma_ldlr_khoan_qd$khoan == 1)
+    # Loc du lieu
+      khoan_kk = merge(khoan_kk,ma_ldlr_khoan_qd,by = "ldlr", all.y = TRUE)
+      khoan_kk = subset(khoan_kk,is.na(khoan_kk$nqh) == FALSE | is.na(khoan_kk$dtuong) == FALSE)
+      khoan_kk = subset(khoan_kk, select = -c(khoan.y))
+      names(khoan_kk)[names(khoan_kk) == "khoan.x"] = "khoan"
+# # Nhom I: da cap giay chung nhan quyen su dung dat (ma1234)--> giao khoan (ma 1) --> sai) (Dung la: da cap giay --> khong giao khoan)
+#     khoan_n1 = subset(khoan_kk,khoan_kk$dtuong < 4)
+#     khoan_n1_quyensd_ma1234_giaokhoan_ma1_sai = subset(khoan_n1,(khoan_n1$quyensd < 5|khoan_n1$quyensd > 0) & (khoan_n1$khoan ==0 | is.na(khoan_n1$khoan) == TRUE))
+#     if(length(khoan_n1_quyensd_ma1234_giaokhoan_ma1_sai$khoan) == 0) {print("Truong du lieu khoan nhom I du thong tin")} else {    print(paste("@ Chu rung nhom I co",length(khoan_n1_quyensd_ma1234_giaokhoan_ma1_sai$khoan), "lo thieu/sai thong tin khoan (da duoc cap giay chung nhan, nhung lai giao khoan/ hoac chua duoc cap giay nhung lai giao khoan)")); khoan_n1_quyensd_ma1234_giaokhoan_ma1_sai}
+# Nhom II: Khoan (nhan khoan_ma 1; khong nhan khoan_ma 2)
+    khoanh_n2 = subset(khoan_kk,khoan_kk$dtuong > 3)
+    khoanh_n2_thieu = subset(khoanh_n2,khoanh_n2$khoan == 0| is.na(khoanh_n2$khoan)==TRUE | khoanh_n2$khoan >2)
+    if(length(khoanh_n2_thieu$khoan)==0) {print("@ Truong du lieu khoan nhom II du thong tin")} else {
+    print(paste("@ Chu rung nhom II co",length(khoanh_n2_thieu$khoan), "lo thieu thong tin khoan, do la:")); khoanh_n2_thieu}
+```
+### 24. Moi quan he giua quyen su dung va khoan
+
+```{r,echo=FALSE}
+# Du lieu: Rung trong quy hoach
+  quyensd_khoan = map_qh0[,c("ldlr","tk","khoanh","lo","dtuong","churung","quyensd","khoan","nguoink","nqh")]
+# Nguoi chua duoc cap giay chung nhan quyen su dung dat (quyensd_ma 4) thi khong the giao khoan (khoan_ma1)
+  quyensd_ma4_khoan_ma1 = subset(quyensd_khoan,quyensd_khoan$quyensd==4 & quyensd_khoan$khoan ==1)
+  if(length(quyensd_ma4_khoan_ma1$quyensd) == 0) {print("Truong du lieu quyensd voi khoan la phu hop")} else {print(paste("@ Ra soat lai",length(quyensd_ma4_khoan_ma1$quyensd), "lo chu rung chua duoc cap giay chung nhan nhung da giao khoan")); quyensd_ma4_khoan_ma1}
+
+```
+### 25. Quy hoach (nqh)
+
+```{r,echo=FALSE}
+# Du lieu: Rung trong quy hoach + Ngoai quy hoach thuoc doi tuong kiem ke
+# Du lieu quy hoach
+    nqh_kk = map[,c("ldlr","tk","khoanh","lo","sldlr","churung","quyensd","nqh")]
+# Kiem tra thong tin
+    nqh_kk_thieu = subset(nqh_kk,nqh_kk$nqh >1|is.na(nqh_kk$nqh) == TRUE)
+    # In thong bao so lo thieu thong tin quyensd
+    if(length(nqh_kk_thieu$nqh)==0) {print("@ Truong du lieu nqh du thong tin")} else { print(paste("@ Co",length(nqh_kk_thieu$nqh), "lo thieu/sai thong tin nqh, do la cac lo:")); nqh_kk_thieu}
+# Kiem tra moi quan he nqh voi ldlr (Rung ngoai quy hoach, chi kiem ke lo rung da thanh rung hoac moi trong rung)
+    ldlr_nqh_qd_khong_kk = subset(ldlr_qd,ldlr_qd$nqh==1)[,c("ldlr","nqh")]
+    ldlr_nqh_kk = subset(map,map$nqh==1)[,c("ldlr","tk","khoanh","lo","nqh")]
+# Dat ngoai quy hoach (ma 1) chi kiem ke voi dat da co rung/moi trong rung. Neu xac dinh dat trong --> ra soat lai ma nqh
+    merge_nqh_ldlr_khong_kk = merge(ldlr_nqh_qd_khong_kk,ldlr_nqh_kk,by = "ldlr",all.x = TRUE)
+    merge_nqh_ldlr_khong_kk = merge_nqh_ldlr_khong_kk[,c(1,3:6)]
+    names(merge_nqh_ldlr_khong_kk)[5] = "nqh"
+    kk_nqh_ldlr_sai = subset(merge_nqh_ldlr_khong_kk,is.na(merge_nqh_ldlr_khong_kk$tk) != TRUE)
+  if(length(kk_nqh_ldlr_sai$ldlr)!=0) {print(paste("@ Ra soat lai ma nqh doi voi",length(kk_nqh_ldlr_sai$ldlr),"lo rung ngoai qui hoach, khong phai la rung, nhung lai kiem ke o cac lo sau"));kk_nqh_ldlr_sai}
+```
+### 26. Nguoi nhan khoan (nguoink)
+
+```{r,echo=FALSE}
+# Du lieu: Rung trong quy hoach
+# Thong tin nguoi nhan khoan
+  nguoink_kk = map_qh0[,c("ldlr","tk","khoanh","lo","sldlr","churung","quyensd","thoihansd","khoan","nguoink")]
+  nguoink_ma1 = subset(nguoink_kk,nguoink_kk$khoan ==1)
+  nguoink_ma1_thieu = subset(nguoink_ma1,nguoink_ma1$nguoink == 0 | is.na(nguoink_ma1$nguoink) == TRUE)
+  if(length(nguoink_ma1_thieu$nguoink)==0) {print("Truong du lieu nguoink du thong tin")} else {print(paste("@ Co",length(nguoink_ma1_thieu$nguoink),"lo thieu thong tin nguoink, do la:"));nguoink_ma1_thieu}
+
+```
+### 27. Nguoi tranh chap (nguoitrch)
+
+```{r,echo=FALSE}
+# Du lieu: Rung_QH + Ngoai quy hoach_KK
+# Thong tin nguoitrch
+  nguoitrch_kk = map[,c("ldlr","tk","khoanh","lo","churung","trchap","nguoitrch")]
+  nguoitrch_trchap = subset(nguoitrch_kk,nguoitrch_kk$trchap == 1)
+  nguoitrch_trchap_thieu = subset(nguoitrch_trchap,nguoitrch_trchap$nguoitrch == 0 | is.na(nguoitrch_trchap$nguoitrch) == TRUE)
+  if(length(nguoitrch_trchap_thieu$nguoitrch)==0) {print("Truong du lieu nguoitrch du thong tin")} else {print(paste("@ Co",length(nguoitrch_trchap_thieu$nguoitrch),"lo thieu thong tin nguoitrch, do la:"));nguoitrch_trchap_thieu}
+```
+### 28. Ma nguoi nhan khoan (mangnk)
+
+```{r,echo=FALSE}
+# Du lieu: Rung trong quy hoach
+#27.1. Thong tin ma nguoi nhan khoan
+  mangnk_kk = map_qh0[,c("ldlr","tk","khoanh","lo","churung","khoan","nguoink","mangnk")]
+# Lo duoc giao khoan
+  mangnk_khoan = subset( mangnk_kk, mangnk_kk$khoan == 1)
+  mangnk_khoan_thieu = subset(mangnk_khoan,mangnk_khoan$mangnk == 0 | is.na(mangnk_khoan$mangnk) == TRUE)
+  if(length(mangnk_khoan_thieu$mangnk)==0) {print("Truong du lieu mangnk du thong tin")} else {print(paste("@ Co",length(mangnk_khoan_thieu$mangnk),"lo thieu thong tin mangnk, do la:"));mangnk_khoan_thieu}
+
+#27.2. Kiem tra thong tin danh ma so nguoi nhan khoan 
+  churung_mangnk = mangnk_khoan[,c("churung","mangnk","nguoink")]
+  ten_churung = as.data.frame(unique(churung_mangnk$churung))
+if(length(ten_churung$churung) !=0) {
+  ten_churung$ten_lay = 1
+  names(ten_churung)[1] = "churung"
+# Tao list chu rung
+  l_churung_mangnk = split(churung_mangnk,churung_mangnk$churung)
+  l_ten_churung = as.data.frame(names(l_churung_mangnk))
+  names(l_ten_churung) = "churung"
+# Ten_churung_remove khoi list
+  ten_remove = merge(ten_churung,l_ten_churung,by = "churung",all.y = TRUE)
+  ten_remove = subset(ten_remove,is.na(ten_remove$ten_lay) == TRUE)[,1]
+# Loai ten chu rung co row = 0
+  l_churung_mangnk[which(names(l_churung_mangnk) %in% ten_remove)] = NULL
+# Sort mangnk, nguoink theo chu rung
+  sl_churung = seq_along(l_churung_mangnk)
+  l_churung_mangnk_qd = list()
+  merge_churung_mangnk = list()
+  for(i in sl_churung) {
+    l_churung_mangnk[[i]] = l_churung_mangnk[[i]][order(l_churung_mangnk[[i]]$mangnk,l_churung_mangnk[[i]]$nguoink),]
+    l_churung_mangnk[[i]] = unique(l_churung_mangnk[[i]][c("churung","mangnk","nguoink")])
+    l_churung_mangnk[[i]]$mangnk_qd = seq_along(l_churung_mangnk[[i]]$churung)
+    l_churung_mangnk_qd[[i]] = l_churung_mangnk[[i]][,c(4,3)]
+    names(l_churung_mangnk_qd[[i]])[1] = "mangnk"
+  # Gop mangnk chuan voi mangnk_kk
+    merge_churung_mangnk[[i]] = merge(l_churung_mangnk[[i]],l_churung_mangnk_qd[[i]],by = "mangnk",all = T)
+    merge_churung_mangnk[[i]] = merge_churung_mangnk[[i]][,c(2,1,3,4,5)]
+    names(merge_churung_mangnk[[i]])[c(2:5)] = c("mangnk_kk","nguoink_kk","mangnk_qd","nguoink_qd")
+  }
+# Gop lai
+    l_churung_mangnk_sai = do.call(rbind,merge_churung_mangnk)
+    l_churung_mangnk_sai_NA = subset(l_churung_mangnk_sai,is.na(l_churung_mangnk_sai$mangnk_qd) == TRUE)
+  if(length(l_churung_mangnk_sai_NA$churung)==0) {print("Ma nguoi nhan khoan dung quy dinh")} else {print(paste("@ Co",length(l_churung_mangnk_sai_NA$churung),"lo danh sai mangnk, do la:"));l_churung_mangnk_sai}
+}
+```
+### 29. Ma nguoi tranh chap (mangtrch)
+
+```{r,echo=FALSE}
+# Du lieu: RQH + Rung ngoai quy hoach_KK
+  mangtrch_xa = map[,c("xa","mangtrch","nguoitrch")]
+  xa_mangtrch = subset(mangtrch_xa,mangtrch_xa$mangtrch == 1)
+if(length(xa_mangtrch$xa) == 0) {print("Khong co nguoi tranh chap")} else {
+  ten_xa = as.data.frame(unique(xa_mangtrch$xa))
+  ten_xa$ten_lay = 1
+  names(ten_xa)[1] = "xa"
+# Tao list chu rung
+  l_xa_mangtrch = split(xa_mangtrch,xa_mangtrch$xa)
+  l_ten_xa = as.data.frame(names(l_xa_mangtrch))
+  names(l_ten_xa) = "xa"
+# Ten_xa_remove khoi list
+  ten_remove = merge(ten_xa,l_ten_xa,by = "xa",all.y = TRUE)
+  ten_remove = subset(ten_remove,is.na(ten_remove$ten_lay) == TRUE)[,1]
+# Loai ten chu rung co row = 0
+  l_xa_mangtrch[which(names(l_xa_mangtrch) %in% ten_remove)] = NULL
+# Sort mangtrch, nguoitrch theo chu rung
+  sl_xa = seq_along(l_xa_mangtrch)
+  l_xa_mangtrch_qd = list()
+  merge_xa_mangtrch = list()
+  for(i in sl_xa) {
+    l_xa_mangtrch[[i]] = l_xa_mangtrch[[i]][order(l_xa_mangtrch[[i]]$mangtrch,l_xa_mangtrch[[i]]$nguoitrch),]
+    l_xa_mangtrch[[i]] = unique(l_xa_mangtrch[[i]][c("xa","mangtrch","nguoitrch")])
+    l_xa_mangtrch[[i]]$mangtrch_qd = seq_along(l_xa_mangtrch[[i]]$xa)
+    l_xa_mangtrch_qd[[i]] = l_xa_mangtrch[[i]][,c(4,3)]
+    names(l_xa_mangtrch_qd[[i]])[1] = "mangtrch"
+  # Gop mangtrch chuan voi mangtrch_kk
+    merge_xa_mangtrch[[i]] = merge(l_xa_mangtrch[[i]],l_xa_mangtrch_qd[[i]],by = "mangtrch",all = T)
+    merge_xa_mangtrch[[i]] = merge_xa_mangtrch[[i]][,c(2,1,3,4,5)]
+    names(merge_xa_mangtrch[[i]])[c(2:5)] = c("mangtrch_kk","nguoitrch_kk","mangtrch_qd","nguoitrch_qd")
+  }
+# Gop lai
+    l_xa_mangtrch_sai = do.call(rbind,merge_xa_mangtrch)
+    l_xa_mangtrch_sai_NA = subset(l_xa_mangtrch_sai,is.na(l_xa_mangtrch_sai$mangtrch_qd) == TRUE)
+  if(length(l_xa_mangtrch_sai_NA$xa)==0) {print("Ma nguoi tranh chap dung quy dinh")} else {print(paste("@ Co",length(l_xa_mangtrch_sai_NA$xa),"lo danh sai mangtrch, do la:"));l_xa_mangtrch_sai}
+}
+```
+### 30. Nguyen sinh (ngsinh)
+
+```
+| TT    |  Nguyen sinh                 |  Ma so  |
+|------------------------------------------------|
+|  1    |  Rung nguyen sinh            |    1    |
+|  2    |  Khong phai rung nguyen sinh |    2    |
+```
+```{r,echo=FALSE}
+# Loc lo rung phai danh ma so rung nguyen sinh (ap dung voi rung tu nhien)
+    # So lieu
+      ngsinh_kk = map[,c("tk","khoanh","lo","ldlr","ngsinh")]
+    # Loai rung phai danh ma ngsinh
+      ma_ngsinh_qd = ldlr_qd[,c("ldlr","ngsinh")]
+      ma_ngsinh_qd = subset(ma_ngsinh_qd,ma_ngsinh_qd$ngsinh == 1)
+      map_ngsinh_kk = merge(ngsinh_kk,ma_ngsinh_qd, by = "ldlr", all.x = TRUE)
+      map_ngsinh_kk = subset(map_ngsinh_kk, is.na(map_ngsinh_kk$ngsinh.y) == FALSE)
+      names(map_ngsinh_kk)[names(map_ngsinh_kk) == "ngsinh.x"] = "ngsinh"
+      map_ngsinh_kk = map_ngsinh_kk[,-6]
+# Kiem tra truong du lieu ngsinh du du lieu hay khong
+  ngsinh_kk_sai = subset(map_ngsinh_kk,map_ngsinh_kk$ngsinh == 0 | is.na(map_ngsinh_kk$ngsinh) == TRUE | map_ngsinh_kk$ngsinh > 2)
+  if(length(ngsinh_kk_sai$ngsinh)==0) {print("Truong du lieu ngsinh du thong tin")} else {print(paste("@ Co",length(ngsinh_kk_sai$ngsinh),"lo thieu/sai thong tin ve ngsinh, do la:"));ngsinh_kk_sai}
+```
+
+
+```{r,echo=FALSE}
+
+```
+
+
+```{r,echo=FALSE}
+
+```

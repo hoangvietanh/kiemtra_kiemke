@@ -1,0 +1,1054 @@
+---
+title: "Giám sát công tác xây dựng hồ sơ quản lý"
+author: "Người giám sát: Phùng Đình Trung, Phạm Ngọc Thành, Nguyễn Tiến Hưng"
+date:  "Đơn vị giám sát: Viện Nghiên cứu Sinh thái và Môi trường rừng (RIFEE)"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+---
+```{r set-options, echo=FALSE, cache=FALSE}
+    options(width = 120)
+```
+## **NỘI DUNG GIÁM SÁT**
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+#I. DOC DU LIEU
+#_________________________
+#1. Khoi tao cac packages
+    rm(list=ls(all=TRUE))
+    require("foreign")    # Read dbf
+    require("sqldf")
+    require("tcltk")
+    require("XLConnect")  # readWorksheetFromFile
+    require("rJava")  
+    require("knitr")      # knitr
+    require("plyr")       # rbind.fill
+    require("stringr")    # str_extract
+  # install.packages("knitr")
+
+#2. Dat thu muc lam viec
+    duongdan_root="C:/Kiemtra_kiemke"
+    #setwd(list.dirs(duongdan_root,recursive =FALSE)[1])
+    #remove_file=list.files("C:/Kiemtra_kiemke/02_Ket qua",full.names=TRUE)
+    #do.call(file.remove,list(remove_file))
+
+#3. Bang ma truong du lieu su dung de phan loai va so sanh
+    setwd(list.dirs(duongdan_root,recursive =FALSE)[3])
+    tdl_qd = readWorksheetFromFile(file="truongdulieu.xls",sheet = 1)
+    ldlr_qd = readWorksheetFromFile(file="truongdulieu.xls",sheet = 2)
+    mdsd_qd = readWorksheetFromFile(file="truongdulieu.xls",sheet = 3)
+    chucai = readWorksheetFromFile(file="truongdulieu.xls",sheet = 5)
+    hsql = readWorksheetFromFile(file="truongdulieu.xls",sheet = "hsql")
+    tdl_qd = tdl_qd[,c("tentruong","kieu","do_rong")]
+
+#4. Doc du lieu file.DAT
+    setwd(list.dirs(duongdan_root,recursive =FALSE)[1])
+    map = read.dbf(file.choose(),as.is=TRUE) # dialoge box to open file
+    #      write.csv(map,file="data.csv")
+    #      system("uvconv data.csv -f TCVN3 -t UTF-8 -o data.csv",intern = TRUE, ignore.stderr = TRUE)
+
+# Doc du lieu xls, csv
+    # setwd(list.dirs(duongdan_root,recursive =FALSE)[1])
+    # Read Excel file
+    #       wb = loadWorkbook("data.xls")
+    #       setMissingValue(wb, value = c(""))
+    #       map = readWorksheet(wb, sheet="Sheet1", header=TRUE)
+    #       map = readWorksheetFromFile(file="data.xls",sheet = 1)
+    # Read csv file
+    # map = read.csv(file = "data.csv",header=T, na.strings=c("","NA"))
+    # Read map file
+    names(map) = tolower(names(map))
+    map$ldlr = tolower(map$ldlr)
+    map$mdsd = tolower(map$mdsd)
+    map$sldlr = tolower(map$sldlr)
+
+```
+### 1. Số liệu đầu vào
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+#II. PHAN LOAI SO LIEU DAU VAO
+#_____________________________
+
+    map_qh0 = subset(map,map$nqh == 0) # Doi tuong rung nam trong quy hoach (ma = 0)
+    map_qh1 = subset(map,map$nqh == 1) # Doi tuong ngoai quy hoach (ma = 1)
+    map_ldlr_nqh = ldlr_qd[,c("ldlr","nqh")] 
+    ma_ldlr_qh0 = subset(map_ldlr_nqh,map_ldlr_nqh$nqh == 0) # Ma loai dat, loai rung ngoai quy hoach, phai kiem ke
+    ma_ldlr_qh1 = subset(map_ldlr_nqh,map_ldlr_nqh$nqh == 1) # Ma loai dat, loai rung nqh, khong kiem ke
+    
+#2.1 Doi tuong ngoai quy hoach (qh1) voi ma ldlr phai kiem ke
+    # Gop sl doi tuong ngoai quy hoach (map_qh1) voi ma ldlr nqh phai kk (ma_ldlr_qh0)--> truong du lieu nqh phai kiem ke
+    merge_map_qh1_kk = merge(ma_ldlr_qh0,map_qh1,by = "ldlr",all.x = TRUE)
+    map_qh1_kk = subset(merge_map_qh1_kk,merge_map_qh1_kk$matinh != 0 | merge_map_qh1_kk$mahuyen != 0 | merge_map_qh1_kk$dtich != 0) 
+    
+    # Du lieu ngoai quy hoach voi ldlr phai kiem ke
+    map_qh1_kk = subset(map_qh1_kk, select=-c(nqh.x))
+    names(map_qh1_kk)[names(map_qh1_kk)=="nqh.y"] = "nqh"  # Change name column by name
+    if(length(map_qh1_kk$lo)==0){print("Khong co lo nao ngoai quy hoach phai kiem ke")} else {print(paste("Co",length(map_qh1_kk$lo),"ngoai quy hoach phai kiem ke"))}
+    #;map_qh1_kk
+    
+# #2.2 Du lieu trong quy hoach voi du lieu ngoai quy hoach phai kiem ke
+    dulieu = rbind.fill(map_qh0,map_qh1_kk)  # Gop hai df voi tieu de cot giong nhau, ko theo cung tran tu
+    if(length(dulieu$nqh)!=0){print(paste("So luong lo kiem tra nam trong quy hoach va ngoai quy hoach phai kiem ke la",length(dulieu$nqh), "lo"))} 
+    
+# #2.4 Xac dinh so luong lo nqh_khong_kk, nhung dua so lieu vao ban do
+#     # Gop so lieu ngoai quy hoach voi ma ldlr ngoai quy hoach khong kiem ke
+#     map_qh1_khong_kk = merge(ma_ldlr_qh1,map_qh1,by = "ldlr",all.x = TRUE)
+#     map_qh1_khong_kk = subset(map_qh1_khong_kk,map_qh1_khong_kk$matinh != 0 | map_qh1_khong_kk$mahuyen != 0 | map_qh1_khong_kk$dtich != 0) # Doi tuong qh1 (ngoai quy hoach), voi ma ldlr khong phai kiem ke
+#     map_qh1_khong_kk = subset(map_qh1_khong_kk,select = -c(nqh.x))
+#     names(map_qh1_khong_kk)[names(map_qh1_khong_kk)=="nqh.y"] = "nqh"
+#     if(length(map_qh1_khong_kk$nqh)!=0){print(paste("Co",length(map_qh1_khong_kk$nqh), "lo ngoai quy hoach, ung voi ldlr khong phai kiem ke, tuy nhien van thong ke tren ban do"))} else {print("Khong co lo nam ngoai quy hoach khong phai kiem ke tren ban do")}
+#     #;map_qh1_khong_kk}
+
+```
+### 2. Rà soát số liệu
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+#3.1. Ra soat ky hieu mdsd (Phuc vu cho lap bang phan theo muc dich su dung)
+# PP:loc ten mdsd da nhap, sau do gop voi ten mdsd theo qui dinh, neu ten mdsd_kk khong trung voi ten mdsd_qd --> sai.
+    ten_mdsd_qd = mdsd_qd[,c("mdsd_qd","ma_mdsd_qd","malr3_qd")]
+    names(ten_mdsd_qd)[1] = "mdsd"
+    ten_mdsd_kk = data.frame(unique(dulieu$mdsd))
+    ten_mdsd_kk$ma_kt = 1
+    names(ten_mdsd_kk)[1] = "mdsd"
+    kt_ten_mdsd = merge(ten_mdsd_kk,ten_mdsd_qd, by= "mdsd", all.x = T)
+    kt_ten_mdsd_sai = subset(kt_ten_mdsd,is.na(kt_ten_mdsd$ma_mdsd_qd) == TRUE)
+    if (length(kt_ten_mdsd_sai$mdsd) == 0) {print("Ket luan: Ten mdsd dung theo qui dinh")} else {print(paste("Ket luan: Co ",length(kt_ten_mdsd_sai[,1]), "ten mdsd sai qui dinh, do la:"));as.character(kt_ten_mdsd_sai$mdsd)}
+        
+#3.2. Ra soat ten loai cay (Phuc vu cho lap bang co du lieu rung trong cay sao su, cay dac san, bang 4A va 4B)
+    tenloai = as.data.frame(unique(dulieu$sldlr))
+    names(tenloai) = "sldlr"
+    tenloai = sort(tenloai$sldlr)
+
+# Ra soat ten loai (Phuc vu cho lap bang 4A va 4B)
+    setwd(list.dirs(duongdan_root,recursive =FALSE)[1])
+    tenloai # Ra soat ten loai, cao su --> c.su va dong hoa ten loai phai thong nhat. Sau khi ra soat, dong hoa, chay de nap lai so lieu
+    #writeWorksheetToFile(file="1.Ra soat ten loai.xls",bieu3_tinh_qh1, sheet="tenloai",styleAction = XLC$STYLE_ACTION.XLCONNECT,clearSheets = FALSE)
+
+#3.3. Ra soat ldlr (Phuc vu cho lap bang phan theo loai cay)
+# Ra soat ten ldlr
+    ldlr_qd_ldlr = ldlr_qd[,c("ldlr","ma_ldlr_qd")]
+    # Loc ldlr kiemke
+    ldlr_kk = dulieu[,c("ldlr","maldlr","tk","khoanh","lo")]
+    colnames(ldlr_kk)[2] = "maldlr_kk"
+    # Kiem tra dat ten truong ldlr sai quy dinh
+    kq_ldlr = merge(ldlr_kk,ldlr_qd_ldlr, by= "ldlr",all = TRUE)
+    kq_ldlr_saiten_qd = subset(kq_ldlr,is.na(kq_ldlr$ma_ldlr_qd) == TRUE)
+    if (length(kq_ldlr_saiten_qd$ldlr) == 0) {print("Ket luan: Dat ten ldlr dung theo qui dinh")} else {print(paste("Ket luan: Co", length(kq_ldlr_saiten_qd$ldlr), "lo dat ten thieu/sai ldlr, do la:"));kq_ldlr_saiten_qd[,-6]}
+    # View(kq_ldlr_saiten_qd)
+
+# Ra soat ma ldlr (Tu ma ldlr --> ma bang)
+    kt_maldlr = subset(kq_ldlr,is.na(kq_ldlr$maldlr_kk) == FALSE)
+    kt_maldlr$kiemtra = kt_maldlr$maldlr_kk - kt_maldlr$ma_ldlr_qd
+    kq_ldlr_saima = subset(kt_maldlr,kt_maldlr$kiemtra != 0)
+    kq_ldlr_saima = kq_ldlr_saima[,-7]
+    colnames(kq_ldlr_saima) = c("ldlr","maldlr kiem ke", "tk","khoanh","lo","ma ldlr theo qui dinh")
+    if(length(kq_ldlr_saima$ldlr)==0) {print("Ket luan: Ma ldlr dung theo qui dinh")} else { print(paste("Ket luan: Co",length(kq_ldlr_saima$ldlr), "lo dat thieu/sai ma ldlr, do la:"));kq_ldlr_saima}
+
+#3.4. Ra soat lap dia (Phan theo lap dia)
+# Ra soat lo thieu thong tin ma lap dia
+# Ra soat ma lap dia co dung voi ldlr khong
+
+#3.5. Ra soat mdsd voi marl3 (ma ba loai rung) (Phuc vu lap bieu 3)
+# Muc tieu: ra soat xem voi mdsd do, marl3 loai rung tuong ung co dung khong
+
+#3.6. Ra soat mgolo va mtnlo (Phuc vu lap bieu 2B,cac bieu xac dinh tru luong)
+
+#IV. MA HOA (MA)
+#________________
+
+#4.1. Ma hoa ma RSX (9,10,11 --> 9)
+#_____________________________
+    dulieu$mamdsd[dulieu$mamdsd >=9 & dulieu$mamdsd <=11] = 9
+
+#4.2. Phan theo nguon goc rung
+#_____________________________
+# ldlr can thong ke
+    ma_nggocr = hsql[,c("ldlr","dl_nggocr","nggocr_cap1","nggocr_cap2")]
+    ma_nggocr = subset(ma_nggocr,ma_nggocr$dl_nggocr == 1)
+# Ma hoa
+  # Rung tu nhien 
+    dulieu = merge(dulieu,ma_nggocr,by = "ldlr",all.x = TRUE)
+
+  # Rung trong
+    dulieu$nggocr_cap1[dulieu$nggocrt == 1] = 1120
+    dulieu$nggocr_cap1[dulieu$nggocrt == 2] = 1120
+    dulieu$nggocr_cap1[dulieu$nggocrt == 3] = 1120
+        dulieu$nggocr_cap2[dulieu$nggocrt == 1] = 1121
+        dulieu$nggocr_cap2[dulieu$nggocrt == 2] = 1122
+        dulieu$nggocr_cap2[dulieu$nggocrt == 3] = 1123
+
+  # Rung cay cao su, dac san
+    dulieu$nggocr_cap1[dulieu$sldlr == "c.su"] = 1124
+    dulieu$nggocr_cap1[dulieu$sldlr == "dieu"] = 1124       # Bo sung danh sach cay dac san theo tinh
+        dulieu$nggocr_cap2[dulieu$sldlr == "c.su"] = 1125
+        dulieu$nggocr_cap2[dulieu$sldlr == "dieu"] = 1126   # Bo sung danh sach cay dac san theo tinh
+#writeWorksheetToFile(file="1.Ra soat.xls",dulieu, sheet="tenloai",styleAction = XLC$STYLE_ACTION.XLCONNECT,clearSheets = FALSE)
+
+#4.3. Phan theo dieu kien lap dia
+#________________________________
+
+# Ma so lapdia
+  ma_lapdia = hsql[,c("ldlr","lapdia_cap1","lapdia_cap2")]
+
+# Gop maso lapdia voi du lieu
+  dulieu = merge(dulieu,ma_lapdia,by = "ldlr",all.x = TRUE)
+
+#4.4. Phan theo loai cay
+#_______________________
+
+# ldlr can thong ke
+  ma_loaicay = hsql[,c("ldlr","dl_loaicay","loaicay_cap1","loaicay_cap2")]
+  ma_loaicay = subset(ma_loaicay,ma_loaicay$dl_loaicay == 1)
+# Ma hoa
+  dulieu = merge(dulieu,ma_loaicay,by = "ldlr",all.x = TRUE)
+
+#4.5. Phan theo tru luong
+#________________________
+
+# ldlr can thong ke
+  ma_truluong = hsql[,c("ldlr","dl_truluong","truluong_cap1","truluong_cap2")]
+  ma_truluong = subset(ma_truluong,ma_truluong$dl_truluong == 1)
+# Ma hoa
+  dulieu = merge(dulieu,ma_truluong,by = "ldlr",all.x = TRUE)
+
+#4.6. Phan theo dat chua co rung
+#________________________
+
+# ldlr can thong ke
+  ma_chuarung = hsql[,c("ldlr","dl_chuarung","chuarung_cap1","chuarung_cap2")]
+  ma_chuarung = subset(ma_chuarung,ma_chuarung$dl_chuarung == 1)
+# Ma hoa
+  dulieu = merge(dulieu,ma_chuarung,by = "ldlr",all.x = TRUE)
+  dulieu$nqh[dulieu$nqh == 1] = 15
+  dulieu$dtuong[dulieu$dtuong == 6] = 5
+
+```
+### 3. Biểu 1A
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+# BIEU 1A: DIEN TICH CAC LOAI RUNG VA DAT LAM NGHIEP PHAN THEO MUC DICH SU DUNG
+#______________________________________________________________________________
+
+# 1A.I Phan theo nguon goc rung
+#______________________________
+
+# Du lieu
+    nggocr_1A = dulieu[,c("nggocr_cap1","nggocr_cap2","dtich","mamdsd","nqh","dl_nggocr")]
+    nggocr_1A = subset(nggocr_1A,nggocr_1A$dl_nggocr == 1)
+  # Du lieu trong quy hoach
+    nggocr_1A_qh0 = subset(nggocr_1A,nggocr_1A$nqh == 0 & nggocr_1A$mamdsd != 12)
+    nggocr_1A_qh0 = tapply(nggocr_1A_qh0$dtich, list(nggocr_1A_qh0$nggocr_cap2,nggocr_1A_qh0$mamdsd), sum)
+    nggocr_1A_qh0 = as.data.frame(nggocr_1A_qh0)
+  # Du lieu ngoai quy hoach
+    nggocr_1A_qh1 = subset(nggocr_1A,nggocr_1A$nqh == 15)
+    nggocr_1A_qh1 = tapply(nggocr_1A_qh1$dtich,list(nggocr_1A_qh1$nggocr_cap2,nggocr_1A_qh1$nqh),sum)
+    nggocr_1A_qh1 = as.data.frame(nggocr_1A_qh1)
+  # Gop du lieu quy hoach va ngoai quy hoach
+    nggocr_1A = merge(nggocr_1A_qh0,nggocr_1A_qh1,by="row.names",all = TRUE)
+
+#1A.2 Phan theo dieu kien lap dia
+#________________________________
+  # Du lieu
+    lapdia_1A = dulieu[,c("lapdia_cap1","lapdia_cap2","dtich","mamdsd","nqh")]
+
+  # Lap dia cap 1
+  # Du lieu trong quy hoach
+    lapdia_1A_qh0_cap1 = subset(lapdia_1A,lapdia_1A$nqh == 0 & lapdia_1A$mamdsd != 12)
+    lapdia_1A_qh0_cap1 = tapply(lapdia_1A_qh0_cap1$dtich, list(lapdia_1A_qh0_cap1$lapdia_cap1,lapdia_1A_qh0_cap1$mamdsd), sum)
+    lapdia_1A_qh0_cap1 = as.data.frame(lapdia_1A_qh0_cap1)
+  # Du lieu ngoai quy hoach
+    lapdia_1A_qh1_cap1 = subset(lapdia_1A,lapdia_1A$nqh == 15)
+    lapdia_1A_qh1_cap1 = tapply(lapdia_1A_qh1_cap1$dtich,list(lapdia_1A_qh1_cap1$lapdia_cap1,lapdia_1A_qh1_cap1$nqh),sum)
+    lapdia_1A_qh1_cap1 = as.data.frame(lapdia_1A_qh1_cap1)
+  # Gop du lieu quy hoach va ngoai quy hoach
+    lapdia_1A_cap1 = merge(lapdia_1A_qh0_cap1,lapdia_1A_qh1_cap1,by="row.names",all = TRUE)
+# Lap dia cap 2
+# Du lieu trong quy hoach
+    lapdia_1A_qh0_cap2 = subset(lapdia_1A,lapdia_1A$nqh == 0 & lapdia_1A$mamdsd != 12)
+    lapdia_1A_qh0_cap2 = tapply(lapdia_1A_qh0_cap2$dtich, list(lapdia_1A_qh0_cap2$lapdia_cap2,lapdia_1A_qh0_cap2$mamdsd), sum)
+    lapdia_1A_qh0_cap2 = as.data.frame(lapdia_1A_qh0_cap2)
+# Du lieu ngoai quy hoach
+    lapdia_1A_qh1_cap2 = subset(lapdia_1A,lapdia_1A$nqh == 15)
+    lapdia_1A_qh1_cap2 = tapply(lapdia_1A_qh1_cap2$dtich,list(lapdia_1A_qh1_cap2$lapdia_cap2,lapdia_1A_qh1_cap2$nqh),sum)
+    lapdia_1A_qh1_cap2 = as.data.frame(lapdia_1A_qh1_cap2)
+# Gop du lieu quy hoach va ngoai quy hoach
+    lapdia_1A_cap2 = merge(lapdia_1A_qh0_cap2,lapdia_1A_qh1_cap2,by="row.names",all = TRUE)
+# Lap dia 1A
+    lapdia_1A = rbind(lapdia_1A_cap1,lapdia_1A_cap2)
+
+# 1A.III Phan theo loai cay
+#__________________________
+# Du lieu
+    loaicay_1A = dulieu[,c("loaicay_cap1","loaicay_cap2","dtich","mamdsd","nqh","dl_loaicay")]
+    loaicay_1A = subset(loaicay_1A,loaicay_1A$dl_loaicay == 1)
+# Du lieu trong quy hoach
+    loaicay_1A_qh0 = subset(loaicay_1A,loaicay_1A$nqh == 0 & loaicay_1A$mamdsd != 12)
+    loaicay_1A_qh0 = tapply(loaicay_1A_qh0$dtich, list(loaicay_1A_qh0$loaicay_cap2,loaicay_1A_qh0$mamdsd), sum)
+    loaicay_1A_qh0 = as.data.frame(loaicay_1A_qh0)
+# Du lieu ngoai quy hoach
+    loaicay_1A_qh1 = subset(loaicay_1A,loaicay_1A$nqh == 15)
+    loaicay_1A_qh1 = tapply(loaicay_1A_qh1$dtich,list(loaicay_1A_qh1$loaicay_cap2,loaicay_1A_qh1$nqh),sum)
+    loaicay_1A_qh1 = as.data.frame(loaicay_1A_qh1)
+# Gop du lieu quy hoach va ngoai quy hoach
+    loaicay_1A = merge(loaicay_1A_qh0,loaicay_1A_qh1,by="row.names",all = TRUE)
+
+# 1A.IV Phan theo tru luong
+#__________________________
+# Du lieu
+    truluong_1A = dulieu[,c("truluong_cap1","truluong_cap2","dtich","mamdsd","nqh","dl_truluong")]
+    truluong_1A = subset(truluong_1A,truluong_1A$dl_truluong == 1)
+# Du lieu trong quy hoach
+    truluong_1A_qh0 = subset(truluong_1A,truluong_1A$nqh == 0 & truluong_1A$mamdsd != 12)
+    truluong_1A_qh0 = tapply(truluong_1A_qh0$dtich, list(truluong_1A_qh0$truluong_cap2,truluong_1A_qh0$mamdsd), sum)
+    truluong_1A_qh0 = as.data.frame(truluong_1A_qh0)
+# Du lieu ngoai quy hoach
+    truluong_1A_qh1 = subset(truluong_1A,truluong_1A$nqh == 15)
+    truluong_1A_qh1 = tapply(truluong_1A_qh1$dtich,list(truluong_1A_qh1$truluong_cap2,truluong_1A_qh1$nqh),sum)
+    truluong_1A_qh1 = as.data.frame(truluong_1A_qh1)
+# Gop du lieu quy hoach va ngoai quy hoach
+    truluong_1A = merge(truluong_1A_qh0,truluong_1A_qh1,by="row.names",all = TRUE)
+
+# 1A.V Phan theo dat chua co rung
+#________________________________
+# Du lieu
+    chuarung_1A = dulieu[,c("chuarung_cap1","chuarung_cap2","dtich","mamdsd","nqh","dl_chuarung")]
+    chuarung_1A = subset(chuarung_1A,chuarung_1A$dl_chuarung == 1)
+# Du lieu trong quy hoach
+    chuarung_1A_qh0 = subset(chuarung_1A,chuarung_1A$nqh == 0 & chuarung_1A$mamdsd != 12)
+    chuarung_1A_qh0 = tapply(chuarung_1A_qh0$dtich, list(chuarung_1A_qh0$chuarung_cap2,chuarung_1A_qh0$mamdsd), sum)
+    chuarung_1A_qh0 = as.data.frame(chuarung_1A_qh0)
+# Du lieu ngoai quy hoach
+    chuarung_1A_qh1 = subset(chuarung_1A,chuarung_1A$nqh == 15)
+    chuarung_1A_qh1 = tapply(chuarung_1A_qh1$dtich,list(chuarung_1A_qh1$chuarung_cap2,chuarung_1A_qh1$nqh),sum)
+    chuarung_1A_qh1 = as.data.frame(chuarung_1A_qh1)
+# Gop du lieu quy hoach va ngoai quy hoach
+    chuarung_1A = merge(chuarung_1A_qh0,chuarung_1A_qh1,by="row.names",all = TRUE)
+
+#1A. Xay dung bieu 1A
+    bieu_1A = rbind.fill(nggocr_1A,lapdia_1A,loaicay_1A,truluong_1A,chuarung_1A)
+    bieu_1A[is.na(bieu_1A)] = 0
+
+# Doi ten
+    names(bieu_1A)[names(bieu_1A)=="Row.names"] = "Ma"
+    names(bieu_1A)[names(bieu_1A)=="1"] = "Dau nguon"
+    names(bieu_1A)[names(bieu_1A)=="2"] = "Chan gio, cat"
+    names(bieu_1A)[names(bieu_1A)=="3"] = "Chan song"
+    names(bieu_1A)[names(bieu_1A)=="4"] = "Bao ve moi truong"
+    names(bieu_1A)[names(bieu_1A)=="5"] = "Vuon quoc gia"
+    names(bieu_1A)[names(bieu_1A)=="6"] = "Bao ton thien nhien"
+    names(bieu_1A)[names(bieu_1A)=="7"] = "Khu rung nghien cuu"
+    names(bieu_1A)[names(bieu_1A)=="8"] = "Bao ve canh quan"
+    names(bieu_1A)[names(bieu_1A)=="9"] = "San xuat"
+    names(bieu_1A)[names(bieu_1A)=="15"] = "NQH cho lam nghiep"
+    print(bieu_1A)
+
+```
+### 4. Biểu 1B
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+# BIEU 1B: TRU LUONG CAC LOAI RUNG VA DAT LAM NGHIEP PHAN THEO MUC DICH SU DUNG
+#______________________________________________________________________________
+
+# 1B.I Phan theo nguon goc rung
+#______________________________
+
+# Du lieu
+    nggocr_1B = dulieu[,c("nggocr_cap1","nggocr_cap2","mgolo","mamdsd","nqh","dl_nggocr")]
+    nggocr_1B = subset(nggocr_1B,nggocr_1B$dl_nggocr == 1)
+# Du lieu trong quy hoach
+    nggocr_1B_qh0 = subset(nggocr_1B,nggocr_1B$nqh == 0 & nggocr_1B$mamdsd != 12)
+    nggocr_1B_qh0 = tapply(nggocr_1B_qh0$mgolo, list(nggocr_1B_qh0$nggocr_cap2,nggocr_1B_qh0$mamdsd), sum)
+    nggocr_1B_qh0 = as.data.frame(nggocr_1B_qh0)
+# Du lieu ngoai quy hoach
+    nggocr_1B_qh1 = subset(nggocr_1B,nggocr_1B$nqh == 15 & nggocr_1B$mamdsd != 12)
+    nggocr_1B_qh1 = tapply(nggocr_1B_qh1$mgolo,list(nggocr_1B_qh1$nggocr_cap2,nggocr_1B_qh1$nqh),sum)
+    nggocr_1B_qh1 = as.data.frame(nggocr_1B_qh1)
+# Gop du lieu quy hoach va ngoai quy hoach
+    nggocr_1B = merge(nggocr_1B_qh0,nggocr_1B_qh1,by="row.names",all = TRUE)
+
+#1B.2 Phan theo dieu kien lap dia
+#________________________________
+# Du lieu
+    lapdia_1B = dulieu[,c("lapdia_cap1","lapdia_cap2","mgolo","mamdsd","nqh")]
+# Lap dia cap 1
+# Du lieu trong quy hoach
+    lapdia_1B_qh0_cap1 = subset(lapdia_1B,lapdia_1B$nqh == 0 & lapdia_1B$mamdsd != 12)
+    lapdia_1B_qh0_cap1 = tapply(lapdia_1B_qh0_cap1$mgolo, list(lapdia_1B_qh0_cap1$lapdia_cap1,lapdia_1B_qh0_cap1$mamdsd), sum)
+    lapdia_1B_qh0_cap1 = as.data.frame(lapdia_1B_qh0_cap1)
+# Du lieu ngoai quy hoach
+    lapdia_1B_qh1_cap1 = subset(lapdia_1B,lapdia_1B$nqh == 15)
+    lapdia_1B_qh1_cap1 = tapply(lapdia_1B_qh1_cap1$mgolo,list(lapdia_1B_qh1_cap1$lapdia_cap1,lapdia_1B_qh1_cap1$nqh),sum)
+    lapdia_1B_qh1_cap1 = as.data.frame(lapdia_1B_qh1_cap1)
+# Gop du lieu quy hoach va ngoai quy hoach
+    lapdia_1B_cap1 = merge(lapdia_1B_qh0_cap1,lapdia_1B_qh1_cap1,by="row.names",all = TRUE)
+# Lap dia cap 2
+# Du lieu trong quy hoach
+    lapdia_1B_qh0_cap2 = subset(lapdia_1B,lapdia_1B$nqh == 0 & lapdia_1B$mamdsd != 12)
+    lapdia_1B_qh0_cap2 = tapply(lapdia_1B_qh0_cap2$mgolo, list(lapdia_1B_qh0_cap2$lapdia_cap2,lapdia_1B_qh0_cap2$mamdsd), sum)
+    lapdia_1B_qh0_cap2 = as.data.frame(lapdia_1B_qh0_cap2)
+# Du lieu ngoai quy hoach
+    lapdia_1B_qh1_cap2 = subset(lapdia_1B,lapdia_1B$nqh == 15)
+    lapdia_1B_qh1_cap2 = tapply(lapdia_1B_qh1_cap2$mgolo,list(lapdia_1B_qh1_cap2$lapdia_cap2,lapdia_1B_qh1_cap2$nqh),sum)
+    lapdia_1B_qh1_cap2 = as.data.frame(lapdia_1B_qh1_cap2)
+# Gop du lieu quy hoach va ngoai quy hoach
+    lapdia_1B_cap2 = merge(lapdia_1B_qh0_cap2,lapdia_1B_qh1_cap2,by="row.names",all = TRUE)
+# Lap dia 1B
+    lapdia_1B = rbind.fill(lapdia_1B_cap1,lapdia_1B_cap2)
+
+# 1B.III Phan theo loai cay
+#__________________________
+# Du lieu
+    loaicay_1B = dulieu[,c("loaicay_cap1","loaicay_cap2","mgolo","mtn","mamdsd","nqh","dl_loaicay")]
+    loaicay_1B = subset(loaicay_1B,loaicay_1B$dl_loaicay == 1)
+
+# Tru luong go (mgolo, m3)
+# Du lieu trong quy hoach
+    loaicay_1B_mgolo_qh0 = subset(loaicay_1B,loaicay_1B$nqh == 0 & loaicay_1B$mamdsd != 12)
+    loaicay_1B_mgolo_qh0 = tapply(loaicay_1B_mgolo_qh0$mgolo, list(loaicay_1B_mgolo_qh0$loaicay_cap2,loaicay_1B_mgolo_qh0$mamdsd), sum)
+    loaicay_1B_mgolo_qh0 = as.data.frame(loaicay_1B_mgolo_qh0)
+# Du lieu ngoai quy hoach
+    loaicay_1B_mgolo_qh1 = subset(loaicay_1B,loaicay_1B$nqh == 15)
+    loaicay_1B_mgolo_qh1 = tapply(loaicay_1B_mgolo_qh1$mgolo,list(loaicay_1B_mgolo_qh1$loaicay_cap2,loaicay_1B_mgolo_qh1$nqh),sum)
+    loaicay_1B_mgolo_qh1 = as.data.frame(loaicay_1B_mgolo_qh1)
+# Gop du lieu quy hoach va ngoai quy hoach
+    loaicay_mgolo_1B = merge(loaicay_1B_mgolo_qh0,loaicay_1B_mgolo_qh1,by="row.names",all = TRUE)
+
+# Tru luong tre nua (mtn, m3)
+# Du lieu trong quy hoach
+    loaicay_1B_mtn_qh0 = subset(loaicay_1B,loaicay_1B$nqh == 0 & loaicay_1B$mamdsd != 12)
+    loaicay_1B_mtn_qh0 = tapply(loaicay_1B_mtn_qh0$mtn, list(loaicay_1B_mtn_qh0$loaicay_cap2,loaicay_1B_mtn_qh0$mamdsd), sum)
+    loaicay_1B_mtn_qh0 = as.data.frame(loaicay_1B_mtn_qh0)
+# Du lieu ngoai quy hoach
+    loaicay_1B_mtn_qh1 = subset(loaicay_1B,loaicay_1B$nqh == 15)
+    loaicay_1B_mtn_qh1 = tapply(loaicay_1B_mtn_qh1$mtn,list(loaicay_1B_mtn_qh1$loaicay_cap2,loaicay_1B_mtn_qh1$nqh),sum)
+    loaicay_1B_mtn_qh1 = as.data.frame(loaicay_1B_mtn_qh1)
+# Gop du lieu quy hoach va ngoai quy hoach
+    loaicay_mtn_1B = merge(loaicay_1B_mtn_qh0,loaicay_1B_mtn_qh1,by="row.names",all = TRUE)
+    loaicay_mtn_1B = subset(loaicay_mtn_1B,loaicay_mtn_1B$Row.names >=1321 & loaicay_mtn_1B$Row.names <= 1325)
+# Gop du lieu
+    loaicay_1B = rbind.fill(loaicay_mgolo_1B,loaicay_mtn_1B)
+
+# 1B.IV Phan theo tru luong
+#__________________________
+# Du lieu
+    truluong_1B = dulieu[,c("truluong_cap1","truluong_cap2","mgolo","mamdsd","nqh","dl_truluong")]
+    truluong_1B = subset(truluong_1B,truluong_1B$dl_truluong == 1)
+# Du lieu trong quy hoach
+    truluong_1B_qh0 = subset(truluong_1B,truluong_1B$nqh == 0 & truluong_1B$mamdsd != 12)
+    truluong_1B_qh0 = tapply(truluong_1B_qh0$mgolo, list(truluong_1B_qh0$truluong_cap2,truluong_1B_qh0$mamdsd), sum)
+    truluong_1B_qh0 = as.data.frame(truluong_1B_qh0)
+# Du lieu ngoai quy hoach
+    truluong_1B_qh1 = subset(truluong_1B,truluong_1B$nqh == 15)
+    truluong_1B_qh1 = tapply(truluong_1B_qh1$mgolo,list(truluong_1B_qh1$truluong_cap2,truluong_1B_qh1$nqh),sum)
+    truluong_1B_qh1 = as.data.frame(truluong_1B_qh1)
+# Gop du lieu quy hoach va ngoai quy hoach
+    truluong_1B = merge(truluong_1B_qh0,truluong_1B_qh1,by="row.names",all = TRUE)
+
+# 1B.V Phan theo dat chua co rung
+#________________________________
+# Du lieu
+    chuarung_1B = dulieu[,c("chuarung_cap1","chuarung_cap2","mgolo","mamdsd","nqh","dl_chuarung")]
+    chuarung_1B = subset(chuarung_1B,chuarung_1B$dl_chuarung == 1)
+# Du lieu trong quy hoach
+    chuarung_1B_qh0 = subset(chuarung_1B,chuarung_1B$nqh == 0 & chuarung_1B$mamdsd != 12)
+    chuarung_1B_qh0 = tapply(chuarung_1B_qh0$mgolo, list(chuarung_1B_qh0$chuarung_cap2,chuarung_1B_qh0$mamdsd), sum)
+    chuarung_1B_qh0 = as.data.frame(chuarung_1B_qh0)
+# Du lieu ngoai quy hoach
+    chuarung_1B_qh1 = subset(chuarung_1B,chuarung_1B$nqh == 15)
+    chuarung_1B_qh1 = tapply(chuarung_1B_qh1$mgolo,list(chuarung_1B_qh1$chuarung_cap2,chuarung_1B_qh1$nqh),sum)
+    chuarung_1B_qh1 = as.data.frame(chuarung_1B_qh1)
+# Gop du lieu quy hoach va ngoai quy hoach
+    chuarung_1B = merge(chuarung_1B_qh0,chuarung_1B_qh1,by="row.names",all = TRUE)
+
+#1B. Xay dung bieu 1B
+    bieu_1B = rbind.fill(nggocr_1B,lapdia_1B,loaicay_1B,truluong_1B,chuarung_1B)
+    bieu_1B[is.na(bieu_1B)] = 0
+# Doi ten
+    names(bieu_1B)[names(bieu_1B)=="Row.names"] = "Ma"
+    names(bieu_1B)[names(bieu_1B)=="1"] = "Dau nguon"
+    names(bieu_1B)[names(bieu_1B)=="2"] = "Chan gio, cat"
+    names(bieu_1B)[names(bieu_1B)=="3"] = "Chan song"
+    names(bieu_1B)[names(bieu_1B)=="4"] = "Bao ve moi truong"
+    names(bieu_1B)[names(bieu_1B)=="5"] = "Vuon quoc gia"
+    names(bieu_1B)[names(bieu_1B)=="6"] = "Bao ton thien nhien"
+    names(bieu_1B)[names(bieu_1B)=="7"] = "Khu rung nghien cuu"
+    names(bieu_1B)[names(bieu_1B)=="8"] = "Bao ve canh quan"
+    names(bieu_1B)[names(bieu_1B)=="9"] = "San xuat"
+    names(bieu_1B)[names(bieu_1B)=="15"] = "NQH cho lam nghiep"
+    print(bieu_1B)
+
+```
+### 5. Biểu 2A
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+# BIEU 2A: DIEN TICH CAC LOAI RUNG VA DAT LAM NGHIEP PHAN THEO CHU QUAN LY
+#_________________________________________________________________________
+
+# 2A.I Phan theo nguon goc rung
+#______________________________
+
+# Du lieu
+    nggocr_2A = dulieu[,c("nggocr_cap1","nggocr_cap2","dtich","dtuong","nqh","dl_nggocr")]
+    nggocr_2A = subset(nggocr_2A,nggocr_2A$dl_nggocr == 1)
+
+# Xay dung bang
+    nggocr_2A = tapply(nggocr_2A$dtich, list(nggocr_2A$nggocr_cap2,nggocr_2A$dtuong), sum)
+    nggocr_2A = as.data.frame(nggocr_2A)
+    nggocr_2A = cbind(row.names(nggocr_2A),nggocr_2A)
+    names(nggocr_2A)[1] = "Ma"
+
+#2A.2 Phan theo dieu kien lap dia
+#________________________________
+# Du lieu
+    lapdia_2A = dulieu[,c("lapdia_cap1","lapdia_cap2","dtich","dtuong","nqh")]
+#     lapdia_2A = subset(lapdia_2A,lapdia_2A$nqh == 0 & is.na(lapdia_2A$lapdia_cap1) != TRUE)
+
+# Lap dia cap 1
+    lapdia_2A_cap1 = tapply(lapdia_2A$dtich, list(lapdia_2A$lapdia_cap1,lapdia_2A$dtuong), sum)
+    lapdia_2A_cap1 = as.data.frame(lapdia_2A_cap1)
+    lapdia_2A_cap1 = cbind(row.names(lapdia_2A_cap1),lapdia_2A_cap1)
+    names(lapdia_2A_cap1)[1] = "Ma"
+
+# Lap dia cap 2
+    lapdia_2A_cap2 = tapply(lapdia_2A$dtich, list(lapdia_2A$lapdia_cap2,lapdia_2A$dtuong), sum)
+    lapdia_2A_cap2 = as.data.frame(lapdia_2A_cap2)
+    lapdia_2A_cap2 = cbind(row.names(lapdia_2A_cap2),lapdia_2A_cap2)
+    names(lapdia_2A_cap2)[1] = "Ma"
+
+# Lap dia 2A
+    lapdia_2A = rbind.fill(lapdia_2A_cap1,lapdia_2A_cap2)
+
+# 2A.III Phan theo loai cay
+#__________________________
+# Du lieu
+    loaicay_2A = dulieu[,c("loaicay_cap1","loaicay_cap2","dtich","dtuong","nqh","dl_loaicay")]
+    loaicay_2A = subset(loaicay_2A,loaicay_2A$dl_loaicay == 1)
+# Loaicay_2A
+    loaicay_2A = tapply(loaicay_2A$dtich, list(loaicay_2A$loaicay_cap2,loaicay_2A$dtuong), sum)
+    loaicay_2A = as.data.frame(loaicay_2A)
+    loaicay_2A = cbind(row.names(loaicay_2A),loaicay_2A)
+    names(loaicay_2A)[1] = "Ma"
+  
+# 2A.IV Phan theo tru luong
+#__________________________
+# Du lieu
+    truluong_2A = dulieu[,c("truluong_cap1","truluong_cap2","dtich","dtuong","nqh","dl_truluong")]
+    truluong_2A = subset(truluong_2A,truluong_2A$dl_truluong == 1)
+# Bieu tru luong 2A
+    truluong_2A = tapply(truluong_2A$dtich, list(truluong_2A$truluong_cap2,truluong_2A$dtuong), sum)
+    truluong_2A = as.data.frame(truluong_2A)
+    truluong_2A = cbind(row.names(truluong_2A),truluong_2A)
+    names(truluong_2A)[1] = "Ma"
+
+# 2A.V Phan theo dat chua co rung
+#________________________________
+# Du lieu
+    chuarung_2A = dulieu[,c("chuarung_cap1","chuarung_cap2","dtich","dtuong","nqh","dl_chuarung")]
+    chuarung_2A = subset(chuarung_2A,chuarung_2A$dl_chuarung == 1)
+# Bieu chuarung_2A
+    chuarung_2A = tapply(chuarung_2A$dtich, list(chuarung_2A$chuarung_cap2,chuarung_2A$dtuong), sum)
+    chuarung_2A = as.data.frame(chuarung_2A)
+    chuarung_2A = cbind(row.names(chuarung_2A),chuarung_2A)
+    names(chuarung_2A)[1] = "Ma"
+
+#2A. Xay dung bieu 2A
+    bieu_2A = rbind.fill(nggocr_2A,lapdia_2A,loaicay_2A,truluong_2A,chuarung_2A)
+    bieu_2A[is.na(bieu_2A)] = 0
+
+# Doi ten
+    names(bieu_2A)[names(bieu_2A)=="Row.names"] = "Ma"
+    names(bieu_2A)[names(bieu_2A)=="1"] = "Ho gia dinh, ca nhan"
+    names(bieu_2A)[names(bieu_2A)=="2"] = "Cong dong"
+    names(bieu_2A)[names(bieu_2A)=="3"] = "UBND"
+    names(bieu_2A)[names(bieu_2A)=="4"] = "BQLR Phong ho"
+    names(bieu_2A)[names(bieu_2A)=="5"] = "DN Nha nuoc"
+    names(bieu_2A)[names(bieu_2A)=="7"] = "DN ngoai QD"
+    names(bieu_2A)[names(bieu_2A)=="8"] = "DN 100% von N.ngoai"
+    names(bieu_2A)[names(bieu_2A)=="9"] = "Cac to chuc khac"
+    names(bieu_2A)[names(bieu_2A)=="10"] = "BQLR Dac dung"
+    names(bieu_2A)[names(bieu_2A)=="15"] = "Ngoai quy hoach"
+    print(bieu_2A)
+
+```
+### 6. Biểu 2B
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+# BIEU 2B: TRU LUONG RUNG PHAN THEO CHU QUAN LY
+#______________________________________________
+
+# 2B.I Phan theo nguon goc rung
+#______________________________
+
+# Du lieu
+    nggocr_2B = dulieu[,c("nggocr_cap1","nggocr_cap2","mgolo","dtuong","nqh","dl_nggocr")]
+    nggocr_2B = subset(nggocr_2B,nggocr_2B$dl_nggocr == 1)
+
+# Bang nggocr_2B
+    nggocr_2B = tapply(nggocr_2B$mgolo, list(nggocr_2B$nggocr_cap2,nggocr_2B$dtuong), sum)
+    nggocr_2B = as.data.frame(nggocr_2B)
+    nggocr_2B = cbind(row.names(nggocr_2B),nggocr_2B)
+    names(nggocr_2B)[1] = "Ma"
+
+#2B.2 Phan theo dieu kien lap dia
+#________________________________
+# Du lieu
+    lapdia_2B = dulieu[,c("lapdia_cap1","lapdia_cap2","mgolo","dtuong","nqh")]
+
+# Lap dia cap 1
+    lapdia_2B_cap1 = tapply(lapdia_2B$mgolo, list(lapdia_2B$lapdia_cap1,lapdia_2B$dtuong), sum)
+    lapdia_2B_cap1 = as.data.frame(lapdia_2B_cap1)
+    lapdia_2B_cap1 = cbind(row.names(lapdia_2B_cap1),lapdia_2B_cap1)
+    names(lapdia_2B_cap1)[1] = "Ma"
+
+# Lap dia cap 2
+    lapdia_2B_cap2 = tapply(lapdia_2B$mgolo, list(lapdia_2B$lapdia_cap2,lapdia_2B$dtuong), sum)
+    lapdia_2B_cap2 = as.data.frame(lapdia_2B_cap2)
+    lapdia_2B_cap2 = cbind(row.names(lapdia_2B_cap2),lapdia_2B_cap2)
+    names(lapdia_2B_cap2)[1] = "Ma"
+
+# Lap dia 2B
+    lapdia_2B = rbind.fill(lapdia_2B_cap1,lapdia_2B_cap2)
+
+# 2B.III Phan theo loai cay
+#__________________________
+# Du lieu
+    loaicay_2B = dulieu[,c("loaicay_cap1","loaicay_cap2","mgolo","mtnlo","dtuong","nqh","dl_loaicay")]
+    loaicay_2B = subset(loaicay_2B,loaicay_2B$dl_loaicay == 1)
+
+# Tru luong go (mgolo, m3)
+    loaicay_2B_mgo = subset(loaicay_2B, loaicay_2B$loaicay_cap2 >= 1310 | loaicay_2B$loaicay_cap2 <= 1314 | loaicay_2B$loaicay_cap2 == 1331)
+    loaicay_2B_mgo = tapply(loaicay_2B_mgo$mgolo, list(loaicay_2B_mgo$loaicay_cap2,loaicay_2B_mgo$dtuong), sum)
+    loaicay_2B_mgo = as.data.frame(loaicay_2B_mgo)
+    loaicay_2B_mgo = cbind(row.names(loaicay_2B_mgo),loaicay_2B_mgo)
+    names(loaicay_2B_mgo)[1] = "Ma"
+
+# Tru luong tre nua (mtn, m3)
+    loaicay_2B_mtn = subset(loaicay_2B, loaicay_2B$loaicay_cap2 >= 1320 & loaicay_2B$loaicay_cap2 <= 1325 | loaicay_2B$loaicay_cap2 == 1332 | loaicay_2B$loaicay_cap2 == 1340)
+    loaicay_2B_mtn = tapply(loaicay_2B_mtn$mtnlo, list(loaicay_2B_mtn$loaicay_cap2,loaicay_2B_mtn$dtuong), sum)
+    loaicay_2B_mtn = as.data.frame(loaicay_2B_mtn)
+    loaicay_2B_mtn = cbind(row.names(loaicay_2B_mtn),loaicay_2B_mtn)
+    names(loaicay_2B_mtn)[1] = "Ma"
+
+# Gop du lieu
+    loaicay_2B = rbind.fill(loaicay_2B_mgo,loaicay_2B_mtn)
+
+# 2B.IV Phan theo tru luong
+#__________________________
+# Du lieu
+    truluong_2B = dulieu[,c("truluong_cap1","truluong_cap2","mgolo","dtuong","nqh","dl_truluong")]
+    truluong_2B = subset(truluong_2B,truluong_2B$dl_truluong == 1)
+
+# Tru luong go (mgolo, m3)
+    truluong_2B_mgo = subset(truluong_2B, truluong_2B$truluong_cap2 >= 1310 | truluong_2B$truluong_cap2 <= 1314 | truluong_2B$truluong_cap2 == 1331)
+    truluong_2B_mgo = tapply(truluong_2B_mgo$mgolo, list(truluong_2B_mgo$truluong_cap2,truluong_2B_mgo$dtuong), sum)
+    truluong_2B_mgo = as.data.frame(truluong_2B_mgo)
+    truluong_2B_mgo = cbind(row.names(truluong_2B_mgo),truluong_2B_mgo)
+    names(truluong_2B_mgo)[1] = "Ma"
+
+#2B. Xay dung bieu 2B
+    bieu_2B = rbind.fill(nggocr_2B,lapdia_2B,loaicay_2B,truluong_2B_mgo)
+    bieu_2B[is.na(bieu_2B)] = 0
+# Doi ten
+    names(bieu_2B)[names(bieu_2B)=="Row.names"] = "Ma"
+    names(bieu_2B)[names(bieu_2B)=="1"] = "Ho gia dinh, ca nhan"
+    names(bieu_2B)[names(bieu_2B)=="2"] = "Cong dong"
+    names(bieu_2B)[names(bieu_2B)=="3"] = "UBND"
+    names(bieu_2B)[names(bieu_2B)=="4"] = "BQLR Phong ho"
+    names(bieu_2B)[names(bieu_2B)=="5"] = "DN Nha nuoc"
+    names(bieu_2B)[names(bieu_2B)=="7"] = "DN ngoai QD"
+    names(bieu_2B)[names(bieu_2B)=="8"] = "DN 100% von N.ngoai"
+    names(bieu_2B)[names(bieu_2B)=="9"] = "Cac to chuc khac"
+    names(bieu_2B)[names(bieu_2B)=="10"] = "BQLR Dac dung"
+    names(bieu_2B)[names(bieu_2B)=="15"] = "Ngoai quy hoach"
+    print(bieu_2B)
+
+```
+### 7. Biểu 3
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+# BIEU 3: TONG HOP DO CHE PHU RUNG (SUA LAI ngay 30-07-2015)
+#_________________________________
+
+# 3.I CAP XA
+#___________
+
+# Du lieu
+    data_chephu = hsql[,c("ldlr","dl_chephu")]
+    data_chephu = subset(data_chephu,data_chephu$dl_chephu == 0)
+    bieu3_xa = merge(dulieu,data_chephu,by = "ldlr",all.x = TRUE)
+
+# Dien tich tu nhien/tieukhu (Du lieu: qh0 + qh1 + du lieu khong kk van thong ke tren ban do)
+    bieu3_xa_dttn = map[,c("tk","ldlr","dtich","thanhrung","malr3","nqh")]
+    bieu3_xa_dtich_tunhien = as.data.frame(tapply(bieu3_xa_dttn$dtich,list(bieu3_xa_dttn$tk),sum))
+    names(bieu3_xa_dtich_tunhien) = "dtich_tunhien"
+#Note: neu tren ban do khong thong ke S ngoai quy hoach --> phai lay dien tich tu nhien tu nguon so lieu khac dua vao
+
+# Dien tich co rung/tieukhu
+    bieu3_xa$dl_chephu[bieu3_xa$thanhrung == 1] = 1 # bo sung du lieu rung trong thanh rung voi dlieu rung tu nhien
+    bieu3_xa_corung = subset(bieu3_xa,bieu3_xa$dl_chephu == 0 | bieu3_xa$dl_chephu == 1)
+    bieu3_xa_dtich_corung = as.data.frame(tapply(bieu3_xa_corung$dtich,list(bieu3_xa_corung$tk),sum))
+    names(bieu3_xa_dtich_corung) = "dtich_corung"
+
+# Phan theo nguon goc (RTN + RT da thanh rung - Rung trong quy hoach)
+    bieu3_xa_qh0 = subset(bieu3_xa_corung, bieu3_xa_corung$nqh == 0)
+    bieu3_xa_nggoc = tapply(bieu3_xa_qh0$dtich, list(bieu3_xa_qh0$tk,bieu3_xa_qh0$dl_chephu),sum)
+    bieu3_xa_nggoc = as.data.frame(bieu3_xa_nggoc)
+    dtich_nggoc = as.data.frame(rowSums(bieu3_xa_nggoc,na.rm = TRUE))
+    names(dtich_nggoc) = "Tong_nggoc"
+    bieu3_xa_nggoc = merge(dtich_nggoc,bieu3_xa_nggoc,by = "row.names")
+    names(bieu3_xa_nggoc)[names(bieu3_xa_nggoc) == "0"] = "Rung tu nhien"
+    names(bieu3_xa_nggoc)[names(bieu3_xa_nggoc) == "1"] = "RT thanh rung"
+
+# Phan theo muc dich su dung
+    bieu3_xa_mdsd =  tapply(bieu3_xa_qh0$dtich, list(bieu3_xa_qh0$tk, bieu3_xa_qh0$malr3),sum)   
+    bieu3_xa_mdsd = as.data.frame(bieu3_xa_mdsd)
+    names(bieu3_xa_mdsd)[names(bieu3_xa_mdsd) == "1"] = "MDSD_Dac dung"
+    names(bieu3_xa_mdsd)[names(bieu3_xa_mdsd) == "2"] = "MDSD_Phong ho"
+    names(bieu3_xa_mdsd)[names(bieu3_xa_mdsd) == "3"] = "MDSD_San xuat"
+
+# Dien tich co rung/tieukhu (ngoai quy hoach)
+    bieu3_xa_qh1 = subset(bieu3_xa,bieu3_xa$nqh == 15)
+    bieu3_xa_qh1$dl_chephu[bieu3_xa_qh1$thanhrung == 1] = 1 # bo sung du lieu rung trong thanh rung voi dlieu rung tu nhien
+    bieu3_xa_qh1_corung = subset(bieu3_xa_qh1,bieu3_xa_qh1$dl_chephu == 0 | bieu3_xa_qh1$dl_chephu == 1)
+    bieu3_xa_qh1_dtich_corung = as.data.frame(tapply(bieu3_xa_qh1_corung$dtich,list(bieu3_xa_qh1_corung$tk),sum))
+    names(bieu3_xa_qh1_dtich_corung) = "Rung ngoai QH"
+
+# Tong hop xay dung bieu3_xa
+    bieu3_xa_dtich = merge(bieu3_xa_dtich_tunhien,bieu3_xa_dtich_corung,by = "row.names", all = TRUE)
+    bieu3_xa_dt_nggoc = merge(bieu3_xa_dtich,bieu3_xa_nggoc,by = "Row.names", all = TRUE)
+    bieu3_mdsd_qh1 = merge(bieu3_xa_mdsd,bieu3_xa_qh1_dtich_corung,by = "row.names", all = TRUE)
+    bieu3_xa = merge(bieu3_xa_dt_nggoc,bieu3_mdsd_qh1,by = "Row.names", all = TRUE)
+    bieu3_xa$do_chephu = round(bieu3_xa$dtich_corung*100/bieu3_xa$dtich_tunhien,1)
+    bieu3_xa[is.na(bieu3_xa)==TRUE] = 0
+    names(bieu3_xa)[names(bieu3_xa)=="Row.names"] = "Tieu khu"
+
+# 3.II CAP HUYEN
+#_______________
+
+# Du lieu
+    bieu3_huyen = dulieu[,c("xa","ldlr","dtich","thanhrung","malr3","nqh")]
+    data_chephu = hsql[,c("ldlr","dl_chephu")]
+    data_chephu = subset(data_chephu,data_chephu$dl_chephu == 0)
+    bieu3_huyen = merge(bieu3_huyen,data_chephu,by = "ldlr",all.x = TRUE)
+
+# Dien tich tu nhien/tieukhu (Du lieu: qh0 + qh1 + du lieu khong kk van thong ke tren ban do)
+    bieu3_huyen_dttn = map[,c("xa","ldlr","dtich","thanhrung","malr3","nqh")]
+    bieu3_huyen_dtich_tunhien = as.data.frame(tapply(bieu3_huyen_dttn$dtich,list(bieu3_huyen_dttn$xa),sum))
+    names(bieu3_huyen_dtich_tunhien) = "dtich_tunhien"
+    #Note: neu tren ban do khong thong ke S ngoai quy hoach --> phai lay dien tich tu nhien tu nguon so lieu khac dua vao
+
+# Dien tich co rung/tieukhu
+    bieu3_huyen$dl_chephu[bieu3_huyen$thanhrung == 1] = 1 # bo sung du lieu rung trong thanh rung voi dlieu rung tu nhien
+    bieu3_huyen_corung = subset(bieu3_huyen,bieu3_huyen$dl_chephu == 0 | bieu3_huyen$dl_chephu == 1)
+    bieu3_huyen_dtich_corung = as.data.frame(tapply(bieu3_huyen_corung$dtich,list(bieu3_huyen_corung$xa),sum))
+    names(bieu3_huyen_dtich_corung) = "dtich_corung"
+
+# Phan theo nguon goc (RTN + RT da thanh rung - Rung trong quy hoach)
+    bieu3_huyen_qh0 = subset(bieu3_huyen_corung, bieu3_huyen_corung$nqh == 0)
+    bieu3_huyen_nggoc = tapply(bieu3_huyen_qh0$dtich, list(bieu3_huyen_qh0$xa,bieu3_huyen_qh0$dl_chephu),sum)
+    bieu3_huyen_nggoc = as.data.frame(bieu3_huyen_nggoc)
+    dtich_nggoc = as.data.frame(rowSums(bieu3_huyen_nggoc,na.rm = TRUE))
+    names(dtich_nggoc) = "Tong_nggoc"
+    bieu3_huyen_nggoc = merge(dtich_nggoc,bieu3_huyen_nggoc,by = "row.names")
+    names(bieu3_huyen_nggoc)[names(bieu3_huyen_nggoc) == "0"] = "Rung tu nhien"
+    names(bieu3_huyen_nggoc)[names(bieu3_huyen_nggoc) == "1"] = "RT thanh rung"
+
+# Phan theo muc dich su dung
+    bieu3_huyen_mdsd =  tapply(bieu3_huyen_qh0$dtich, list(bieu3_huyen_qh0$xa, bieu3_huyen_qh0$malr3),sum)   
+    bieu3_huyen_mdsd = as.data.frame(bieu3_huyen_mdsd)
+    names(bieu3_huyen_mdsd)[names(bieu3_huyen_mdsd) == "1"] = "MDSD_Dac dung"
+    names(bieu3_huyen_mdsd)[names(bieu3_huyen_mdsd) == "2"] = "MDSD_Phong ho"
+    names(bieu3_huyen_mdsd)[names(bieu3_huyen_mdsd) == "3"] = "MDSD_San xuat"
+
+# Dien tich co rung/tieukhu (ngoai quy hoach)
+    bieu3_huyen_qh1 = subset(bieu3_huyen,bieu3_huyen$nqh == 15)
+    bieu3_huyen_qh1$dl_chephu[bieu3_huyen_qh1$thanhrung == 1] = 1 # bo sung du lieu rung trong thanh rung voi dlieu rung tu nhien
+    bieu3_huyen_qh1_corung = subset(bieu3_huyen_qh1,bieu3_huyen_qh1$dl_chephu == 0 | bieu3_huyen_qh1$dl_chephu == 1)
+    bieu3_huyen_qh1_dtich_corung = as.data.frame(tapply(bieu3_huyen_qh1_corung$dtich,list(bieu3_huyen_qh1_corung$xa),sum))
+    names(bieu3_huyen_qh1_dtich_corung) = "Rung ngoai QH"
+
+# Tong hop huyeny dung bieu3_huyen
+    bieu3_huyen_dtich = merge(bieu3_huyen_dtich_tunhien,bieu3_huyen_dtich_corung,by = "row.names", all = TRUE)
+    bieu3_huyen_dt_nggoc = merge(bieu3_huyen_dtich,bieu3_huyen_nggoc,by = "Row.names", all = TRUE)
+    bieu3_mdsd_qh1 = merge(bieu3_huyen_mdsd,bieu3_huyen_qh1_dtich_corung,by = "row.names", all = TRUE)
+    bieu3_huyen = merge(bieu3_huyen_dt_nggoc,bieu3_mdsd_qh1,by = "Row.names", all = TRUE)
+    bieu3_huyen$Do_chephu = round(bieu3_huyen$dtich_corung*100/bieu3_huyen$dtich_tunhien,1)
+    bieu3_huyen[is.na(bieu3_huyen)==TRUE] = 0
+    names(bieu3_huyen)[names(bieu3_huyen)=="Row.names"] = "Xa"
+    
+    print(bieu3_huyen)
+
+# # 3.III CAP TINH 
+# #_______________
+# 
+# # Du lieu
+#     bieu3_tinh = map[,c("huyen","ldlr","dtich","thanhrung","malr3","nqh")]
+#     data_chephu = hsql[,c("ldlr","dl_chephu")]
+#     data_chephu = subset(data_chephu,data_chephu$dl_chephu == 0)
+#     bieu3_tinh = merge(bieu3_tinh,data_chephu,by = "ldlr",all.x = TRUE)
+# 
+# # Dien tich tu nhien/tieukhu (Du lieu: qh0 + qh1 + du lieu khong kk van thong ke tren ban do)
+#     bieu3_tinh_dttn = map[,c("huyen","ldlr","dtich","thanhrung","malr3","nqh")]
+#     bieu3_tinh_dtich_tunhien = as.data.frame(tapply(bieu3_tinh_dttn$dtich,list(bieu3_tinh_dttn$huyen),sum))
+#     names(bieu3_tinh_dtich_tunhien) = "dtich_tunhien"
+#     #Note: neu tren ban do khong thong ke S ngoai quy hoach --> phai lay dien tich tu nhien tu nguon so lieu khac dua vao
+# 
+# # Dien tich co rung/tieukhu
+#     bieu3_tinh$dl_chephu[bieu3_tinh$thanhrung == 1] = 1 # bo sung du lieu rung trong thanh rung voi dlieu rung tu nhien
+#     bieu3_tinh_corung = subset(bieu3_tinh,bieu3_tinh$dl_chephu == 0 | bieu3_tinh$dl_chephu == 1)
+#     bieu3_tinh_dtich_corung = as.data.frame(tapply(bieu3_tinh_corung$dtich,list(bieu3_tinh_corung$huyen),sum))
+#     names(bieu3_tinh_dtich_corung) = "dtich_corung"
+# 
+# # Phan theo nguon goc (RTN + RT da thanh rung - Rung trong quy hoach)
+#     bieu3_tinh_qh0 = subset(bieu3_tinh_corung, bieu3_tinh_corung$nqh == 0)
+#     bieu3_tinh_nggoc = tapply(bieu3_tinh_qh0$dtich, list(bieu3_tinh_qh0$huyen,bieu3_tinh_qh0$dl_chephu),sum)
+#     bieu3_tinh_nggoc = as.data.frame(bieu3_tinh_nggoc)
+#     dtich_nggoc = as.data.frame(rowSums(bieu3_tinh_nggoc,na.rm = TRUE))
+#     names(dtich_nggoc) = "Tong_nggoc"
+#     bieu3_tinh_nggoc = merge(dtich_nggoc,bieu3_tinh_nggoc,by = "row.names")
+#     names(bieu3_tinh_nggoc)[names(bieu3_tinh_nggoc) == "0"] = "Rung tu nhien"
+#     names(bieu3_tinh_nggoc)[names(bieu3_tinh_nggoc) == "1"] = "RT thanh rung"
+# 
+# # Phan theo muc dich su dung
+#     bieu3_tinh_mdsd =  tapply(bieu3_tinh_qh0$dtich, list(bieu3_tinh_qh0$huyen, bieu3_tinh_qh0$malr3),sum)   
+#     bieu3_tinh_mdsd = as.data.frame(bieu3_tinh_mdsd)
+#     names(bieu3_tinh_mdsd)[names(bieu3_tinh_mdsd) == "1"] = "MDSD_Dac dung"
+#     names(bieu3_tinh_mdsd)[names(bieu3_tinh_mdsd) == "2"] = "MDSD_Phong ho"
+#     names(bieu3_tinh_mdsd)[names(bieu3_tinh_mdsd) == "3"] = "MDSD_San xuat"
+# 
+# # Dien tich co rung/tieukhu (ngoai quy hoach)
+#     bieu3_tinh_qh1 = subset(bieu3_tinh,bieu3_tinh$nqh == 15)
+#     bieu3_tinh_qh1$dl_chephu[bieu3_tinh_qh1$thanhrung == 1] = 1 # bo sung du lieu rung trong thanh rung voi dlieu rung tu nhien
+#     bieu3_tinh_qh1_corung = subset(bieu3_tinh_qh1,bieu3_tinh_qh1$dl_chephu == 0 | bieu3_tinh_qh1$dl_chephu == 1)
+#     bieu3_tinh_qh1_dtich_corung = as.data.frame(tapply(bieu3_tinh_qh1_corung$dtich,list(bieu3_tinh_qh1_corung$huyen),sum))
+#     names(bieu3_tinh_qh1_dtich_corung) = "Rung ngoai QH"
+# 
+# # Tong hop tinhy dung bieu3_tinh
+#     bieu3_tinh_dtich = merge(bieu3_tinh_dtich_tunhien,bieu3_tinh_dtich_corung,by = "row.names", all = TRUE)
+#     bieu3_tinh_dt_nggoc = merge(bieu3_tinh_dtich,bieu3_tinh_nggoc,by = "Row.names", all = TRUE)
+#     bieu3_mdsd_qh1 = merge(bieu3_tinh_mdsd,bieu3_tinh_qh1_dtich_corung,by = "row.names", all = TRUE)
+#     bieu3_tinh = merge(bieu3_tinh_dt_nggoc,bieu3_mdsd_qh1,by = "Row.names", all = TRUE)
+#     bieu3_tinh$Do_chephu = round(bieu3_tinh$dtich_corung*100/bieu3_tinh$dtich_tunhien,1)
+#     bieu3_tinh[is.na(bieu3_tinh)==TRUE] = 0
+#     names(bieu3_tinh)[names(bieu3_tinh)=="Row.names"] = "Huyen"
+# 
+# ```
+# ### 8. Biểu 4A
+# 
+# ```{r, echo=FALSE,warning=FALSE,message=FALSE}
+# # BIEU 4A: DIEN TICH RUNG TRONG PHAN THEO LOAI CAY VA CAP TUOI
+# #_____________________________________________________________
+# 
+# #4A.1 Du lieu (Du lieu trong QH + NQH_KK)
+#     dl_bieu_4A = dulieu[,c("sldlr","dtich","mgolo","captuoi")]
+#     dl_bieu_4A = subset(dl_bieu_4A, dl_bieu_4A$captuoi >=1)
+#     dl_bieu_4A$captuoi[dl_bieu_4A$captuoi >5] = 5
+# 
+# #4A.2 Xay dung bieu 4A
+#     bieu_4A = tapply(dl_bieu_4A$dtich,list(dl_bieu_4A$sldlr,dl_bieu_4A$captuoi),sum)
+#     bieu_4A[is.na(bieu_4A)==TRUE] = 0
+#     bieu_4A = as.data.frame(bieu_4A)
+#     bieu_4A$Tong_cong = rowSums(bieu_4A)
+#     loaicay = as.data.frame(row.names(bieu_4A))
+#     names(loaicay) = "Loai_cay"
+#     bieu_4A = cbind(loaicay,bieu_4A)
+#     row.names(bieu_4A) = NULL
+#     if(length(names(bieu_4A))==3){bieu_4A = bieu_4A[,c(1,3,2)]} else {bieu_4A = bieu_4A[,c(1,length(names(bieu_4A)),2:(length(names(bieu_4A))-1))]}
+#     print(bieu_4A)
+# 
+# ```
+# ### 9. Biểu 4B
+# 
+# ```{r, echo=FALSE,warning=FALSE,message=FALSE}
+# # BIEU 4B: TRU LUONG RUNG TRONG PHAN THEO LOAI CAY VA CAP TUOI
+# #_____________________________________________________________
+# 
+#     bieu_4B = tapply(dl_bieu_4A$mgolo,list(dl_bieu_4A$sldlr,dl_bieu_4A$captuoi),sum)
+#     bieu_4B[is.na(bieu_4B)==TRUE] = 0
+#     bieu_4B = as.data.frame(bieu_4B)
+#     bieu_4B$Tong_cong = rowSums(bieu_4B)
+#     loaicay = as.data.frame(row.names(bieu_4B))
+#     names(loaicay) = "Loai_cay"
+#     bieu_4B = cbind(loaicay,bieu_4B)
+#     row.names(bieu_4B) = NULL
+#     if(length(names(bieu_4B))==3){bieu_4B = bieu_4B[,c(1,3,2)]} else {bieu_4B = bieu_4B[,c(1,length(names(bieu_4B)),2:(length(names(bieu_4B))-1))]}
+#     print(bieu_4B)
+# 
+# ```
+# ### 10. Biểu 5
+# 
+# ```{r, echo=FALSE,warning=FALSE,message=FALSE}
+# # BIEU 5: TINH TRANG QUAN LY RUNG VA DAT LAM NGHIEP
+# #__________________________________________________
+# 
+# #5.1 Du lieu (Trong quy hoach va ngoai quy hoach phai kiem ke)
+#     quanly_hsql = hsql[,c("ldlr","quanly_cap1")]
+#     dl_bieu5 = merge(dulieu,quanly_hsql,by = "ldlr",all.x = TRUE )
+#     dl_bieu5 = dl_bieu5[,c("ldlr","dtich","dtuong","trchap","quyensd","nqh","quanly_cap1")]
+# 
+#   # Du lieu da giao quyen su dung (quyensd = 1 - 3)
+#     dl_bieu5_quyensd123 = subset(dl_bieu5, dl_bieu5$quyensd>=1 & dl_bieu5$quyensd <=3)
+#   # Du lieu chua giao quyen su dung (quyensd = 4)
+#     dl_bieu5_quyensd4 = subset(dl_bieu5,dl_bieu5$quyensd == 4)
+# 
+# #5.I. Da giao quyensd
+#   # Khong tranh chap (ma 2)
+#     dl_bieu5_quyensd123_trchap2 = subset(dl_bieu5_quyensd123,dl_bieu5_quyensd123$trchap == 2)
+#     bieu5.I_trchap2 = tapply(dl_bieu5_quyensd123_trchap2$dtich,list(dl_bieu5_quyensd123_trchap2$quanly_cap1,dl_bieu5_quyensd123_trchap2$dtuong),sum)
+#     bieu5.I_trchap2 = rbind(colSums(bieu5.I_trchap2,na.rm = TRUE),bieu5.I_trchap2)
+#     bieu5.I_trchap2 = as.data.frame(bieu5.I_trchap2)
+#     bieu5.I_trchap2 = cbind(row.names(bieu5.I_trchap2),bieu5.I_trchap2)
+#     names(bieu5.I_trchap2)[1] = "Maso"
+#   # Co tranh chap (ma 1)
+#     dl_bieu5_quyensd123_trchap1 = subset(dl_bieu5_quyensd123,dl_bieu5_quyensd123$trchap == 1)
+#     bieu5.I_trchap1 = tapply(dl_bieu5_quyensd123_trchap1$dtich,list(dl_bieu5_quyensd123_trchap1$quanly_cap1,dl_bieu5_quyensd123_trchap1$dtuong),sum)
+#     bieu5.I_trchap1 = rbind(colSums(bieu5.I_trchap1,na.rm = TRUE),bieu5.I_trchap1)
+#     bieu5.I_trchap1 = as.data.frame(bieu5.I_trchap1)
+#     bieu5.I_trchap1 = cbind(row.names(bieu5.I_trchap1),bieu5.I_trchap1)
+#     names(bieu5.I_trchap1)[1] = "Maso"
+#   # Bieu5.I
+#     bieu5.I = rbind.fill(bieu5.I_trchap2,bieu5.I_trchap1)
+# 
+# #5.II. Chua giao quyensd
+#   # Khong tranh chap (ma 2)
+#     dl_bieu5_quyensd4_trchap2 = subset(dl_bieu5_quyensd4,dl_bieu5_quyensd4$trchap == 2)
+#     bieu5.II_trchap2 = tapply(dl_bieu5_quyensd4_trchap2$dtich,list(dl_bieu5_quyensd4_trchap2$quanly_cap1,dl_bieu5_quyensd4_trchap2$dtuong),sum)
+#     bieu5.II_trchap2 = rbind(colSums(bieu5.II_trchap2,na.rm = TRUE),bieu5.II_trchap2)
+#     bieu5.II_trchap2 = as.data.frame(bieu5.II_trchap2)
+#     bieu5.II_trchap2 = cbind(row.names(bieu5.II_trchap2),bieu5.II_trchap2)
+#     names(bieu5.II_trchap2)[1] = "Maso"
+#   # Co tranh chap (ma 1)
+#     dl_bieu5_quyensd4_trchap1 = subset(dl_bieu5_quyensd4,dl_bieu5_quyensd4$trchap == 1)
+#     bieu5.II_trchap1 = tapply(dl_bieu5_quyensd4_trchap1$dtich,list(dl_bieu5_quyensd4_trchap1$quanly_cap1,dl_bieu5_quyensd4_trchap1$dtuong),sum)
+#     bieu5.II_trchap1 = rbind(colSums(bieu5.II_trchap1,na.rm = TRUE),bieu5.II_trchap1)
+#     bieu5.II_trchap1 = as.data.frame(bieu5.II_trchap1)
+#     bieu5.II_trchap1 = cbind(row.names(bieu5.II_trchap1),bieu5.II_trchap1)
+#     names(bieu5.II_trchap1)[1] = "Maso"
+#   # Bieu5.II
+#     bieu5.II = rbind.fill(bieu5.II_trchap2,bieu5.II_trchap1)
+# 
+# #5.Bieu5 - Xay dung bieu 5
+#     bieu5 = rbind.fill(bieu5.I,bieu5.II)
+#     bieu5 = cbind(rowSums(bieu5[,-1],na.rm = TRUE),bieu5)
+#     names(bieu5)[1] = "Tong_cong"
+#     bieu5 = bieu5[,c(2,1,3:length(names(bieu5)))]
+#     bieu5[is.na(bieu5)] = 0
+# # Doi ten
+#     names(bieu5)[names(bieu5)=="1"] = "Ho gia dinh, ca nhan"
+#     names(bieu5)[names(bieu5)=="2"] = "Cong dong"
+#     names(bieu5)[names(bieu5)=="3"] = "UBND"
+#     names(bieu5)[names(bieu5)=="4"] = "BQLR Phong ho"
+#     names(bieu5)[names(bieu5)=="5"] = "DN Nha nuoc"
+#     names(bieu5)[names(bieu5)=="7"] = "DN ngoai QD"
+#     names(bieu5)[names(bieu5)=="8"] = "DN 100% von N.ngoai"
+#     names(bieu5)[names(bieu5)=="9"] = "To chuc khac"
+#     names(bieu5)[names(bieu5)=="10"] = "BQLR Dac dung"
+#     names(bieu5)[names(bieu5)=="11"] = "D.vi vu trang"
+#     print(bieu5)
+
+```
+
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```
+
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```
+
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```
+
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```
+
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```
+
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```
+
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```
+
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```
+
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```
+
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```
+
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```
+
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```
+
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```
+
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```
+
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```
+
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```
+
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+```
+
+

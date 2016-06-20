@@ -1,0 +1,66 @@
+!table
+!version 450
+!charset WindowsLatin1
+
+Definition Table
+  Type NATIVE Charset "WindowsLatin1"
+  Fields 53
+    tt Decimal (7, 0) Index 1 ;
+    id Decimal (2, 0) ;
+    matinh Decimal (4, 0) ;
+    mahuyen Decimal (4, 0) ;
+    maxa Decimal (6, 0) Index 2 ;
+    xa Char (20) Index 3 ;
+    tk Char (10) Index 4 ;
+    khoanh Char (5) Index 5 ;
+    lo Char (5) ;
+    thuad Decimal (5, 0) ;
+    tobando Char (8) ;
+    ddanh Char (25) ;
+    dtich Decimal (9, 2) ;
+    nggocr Decimal (2, 0) ;
+    ldlr Char (10) ;
+    maldlr Decimal (4, 0) ;
+    sldlr Char (15) ;
+    namtr Decimal (5, 0) ;
+    captuoi Decimal (5, 0) ;
+    ktan Decimal (2, 0) ;
+    nggocrt Decimal (2, 0) ;
+    thanhrung Decimal (2, 0) ;
+    mgo Decimal (7, 1) ;
+    mtn Decimal (9, 3) ;
+    mgolo Decimal (9, 1) ;
+    mtnlo Decimal (9, 3) ;
+    lapdia Decimal (4, 0) ;
+    malr3 Decimal (1, 0) ;
+    mdsd Char (20) ;
+    mamdsd Decimal (3, 0) ;
+    dtuong Decimal (2, 0) ;
+    churung Char (30) ;
+    machur Decimal (5, 0) ;
+    trchap Decimal (2, 0) ;
+    quyensd Decimal (2, 0) ;
+    thoihansd Decimal (5, 0) ;
+    khoan Decimal (2, 0) ;
+    nqh Decimal (2, 0) ;
+    nguoink Char (20) ;
+    nguoitrch Char (20) ;
+    mangnk Decimal (4, 0) ;
+    mangtrch Decimal (4, 0) ;
+    ngsinh Decimal (2, 0) ;
+    Kd Decimal (8, 0) ;
+    Vd Decimal (9, 0) ;
+    Capkd Decimal (8, 1) ;
+    Capvd Decimal (9, 1) ;
+    locu Char (6) ;
+    vitrithua Integer ;
+    tinh Char (30) ;
+    huyen Char (30) ;
+    loai_cql Char (5) ;
+    XA_ENG Char (30) ;
+begin_metadata
+"\IsReadOnly" = "FALSE"
+"\MapInfo" = ""
+"\MapInfo\TableID" = "1b0ac324-096a-4109-9afa-2e0af411a454"
+"\MapInfo\ParentTableID" = "1182cfdd-f27f-4580-9b49-692bf19554e4"
+end_metadata
